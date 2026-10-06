@@ -42,6 +42,7 @@ PROJECT BOT/
 ├── .env.example                # ตัวอย่างไฟล์ .env
 ├── config.json                 # เก็บ ID ห้อง log แยกตามเซิร์ฟเวอร์ (บอทเขียนเอง)
 ├── diagnose.js                 # สคริปต์ตรวจสุขภาพบอท (npm run diagnose)
+├── website/                    # 🌐 เว็บไซต์แนะนำบอท (Next.js + Tailwind)
 ├── package.json
 ├── tsconfig.json
 └── README.md
@@ -146,6 +147,23 @@ npm run dev
 | `npm run diagnose` | ตรวจสุขภาพบอท: token ใช้ได้ไหม, คำสั่งลงไว้กี่คำสั่ง, บอทอยู่เซิร์ฟเวอร์ไหน |
 | `npm run build` | คอมไพล์ TypeScript → โฟลเดอร์ `dist/` |
 | `npm run start:prod` | รันบอทจากโค้ดที่ build แล้ว (production) |
+
+---
+
+## 🌐 เว็บไซต์แนะนำบอท (`website/`)
+
+เว็บโชว์ฟีเจอร์บอทหน้าเดียว — Next.js 16 + Tailwind CSS 4 ธีมสี Rem
+
+🌍 **เปิดใช้งานจริงแล้ว: https://rem-bot.vercel.app (Vercel)**
+
+```bash
+cd website
+npm install
+npm run dev   # เปิดที่ http://localhost:3000
+```
+
+- ปุ่ม "เชิญ Rem เข้าเซิร์ฟเวอร์" ใช้ลิงก์เชิญจริงของบอท — แก้ได้ที่ตัวแปร `INVITE_URL` ใน `website/src/app/page.tsx`
+- Deploy ซ้ำเมื่อแก้เว็บ: `cd website && npx vercel deploy --prod --yes`
 
 ---
 

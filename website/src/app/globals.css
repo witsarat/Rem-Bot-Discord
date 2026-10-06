@@ -1,0 +1,208 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Prompt", "Mitr", ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Hiragino Sans",
+    "Noto Sans Thai", sans-serif;
+  --font-display: "Mitr", "Prompt", ui-sans-serif, system-ui, "Hiragino Sans", "Yu Gothic", sans-serif;
+
+  --color-rem-950: #070c17;
+  --color-rem-900: #0a111f;
+  --color-rem-800: #0d1626;
+  --color-rem-700: #121e33;
+  --color-rem-600: #182742;
+  --color-rem-sky: #8fd8f8;
+  --color-rem-deep: #4ea9e0;
+  --color-rem-ice: #eaf6ff;
+  --color-rem-mist: #a7bdd6;
+
+  --color-status-join: #57f287;
+  --color-status-leave: #ed4245;
+  --color-status-move: #fee75c;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--color-rem-950);
+  color: var(--color-rem-ice);
+  font-family: var(--font-sans);
+}
+
+::selection {
+  background: rgba(143, 216, 248, 0.35);
+  color: #06121f;
+}
+
+/* ---------- พื้นหลังฉาก: แสงเรืองฟ้าแบบ Rem ---------- */
+.bg-scene::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  pointer-events: none;
+  background:
+    radial-gradient(58rem 40rem at 82% -12%, rgba(78, 169, 224, 0.2), transparent 62%),
+    radial-gradient(46rem 34rem at -12% 26%, rgba(143, 216, 248, 0.12), transparent 58%),
+    radial-gradient(44rem 32rem at 50% 118%, rgba(78, 169, 224, 0.16), transparent 60%),
+    linear-gradient(180deg, #06090f 0%, #0a111f 38%, #0d1626 100%);
+}
+
+/* ---------- ตัวอักษรไล่สี ---------- */
+.text-grad {
+  background-image: linear-gradient(118deg, #c8ecff 0%, #8fd8f8 38%, #4ea9e0 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.grad-avatar {
+  background-image: linear-gradient(135deg, #bfeaff 0%, #4ea9e0 100%);
+}
+
+/* ---------- ปุ่ม ---------- */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  padding: 0.85rem 1.6rem;
+  font-weight: 600;
+  color: #06263b;
+  background-image: linear-gradient(135deg, #a5e3ff 0%, #4ea9e0 100%);
+  box-shadow: 0 0 0 1px rgba(165, 227, 255, 0.35), 0 12px 42px -12px rgba(78, 169, 224, 0.55);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+.btn-primary:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.06);
+  box-shadow: 0 0 0 1px rgba(165, 227, 255, 0.5), 0 18px 52px -12px rgba(78, 169, 224, 0.75);
+}
+
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 9999px;
+  padding: 0.85rem 1.6rem;
+  font-weight: 500;
+  color: var(--color-rem-ice);
+  border: 1px solid rgba(143, 216, 248, 0.25);
+  background: rgba(143, 216, 248, 0.06);
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+.btn-ghost:hover {
+  background: rgba(143, 216, 248, 0.12);
+  border-color: rgba(143, 216, 248, 0.45);
+  transform: translateY(-2px);
+}
+
+.btn-sm {
+  padding: 0.5rem 1.1rem;
+  font-size: 0.875rem;
+}
+
+/* ---------- การ์ด ---------- */
+.card {
+  border-radius: 1.25rem;
+  border: 1px solid rgba(143, 216, 248, 0.14);
+  background-image: linear-gradient(180deg, rgba(143, 216, 248, 0.07) 0%, rgba(143, 216, 248, 0.02) 100%);
+  transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+.card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(143, 216, 248, 0.32);
+  box-shadow: 0 24px 70px -38px rgba(78, 169, 224, 0.65);
+}
+
+/* ---------- ชิป ---------- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(143, 216, 248, 0.3);
+  background: rgba(143, 216, 248, 0.08);
+  padding: 0.2rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--color-rem-sky);
+  white-space: nowrap;
+}
+.chip-amber {
+  border-color: rgba(254, 231, 92, 0.35);
+  background: rgba(254, 231, 92, 0.08);
+  color: #fee75c;
+}
+
+/* ---------- ลายลูกไม้ (lace) คั่นส่วน ---------- */
+.lace {
+  height: 12px;
+  background-image: radial-gradient(circle, rgba(143, 216, 248, 0.45) 2.5px, transparent 3px);
+  background-size: 18px 12px;
+  background-position: center;
+}
+
+/* ---------- แสงฟุ้ง / ลอย ---------- */
+.glow {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(70px);
+  pointer-events: none;
+}
+
+@keyframes floaty {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+.floaty {
+  animation: floaty 7s ease-in-out infinite;
+}
+.floaty-slow {
+  animation: floaty 10s ease-in-out infinite;
+}
+
+/* ---------- FAQ (details/summary) ---------- */
+details.faq {
+  border-radius: 1rem;
+  border: 1px solid rgba(143, 216, 248, 0.14);
+  background: rgba(143, 216, 248, 0.04);
+  overflow: hidden;
+}
+details.faq summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--color-rem-ice);
+  list-style: none;
+}
+details.faq summary::-webkit-details-marker {
+  display: none;
+}
+details.faq summary::after {
+  content: "＋";
+  color: var(--color-rem-sky);
+  transition: transform 0.2s ease;
+  flex: none;
+}
+details.faq[open] summary::after {
+  transform: rotate(45deg);
+}
+details.faq .faq-body {
+  padding: 0 1.25rem 1.15rem;
+  color: rgba(233, 246, 255, 0.75);
+  font-size: 0.95rem;
+  line-height: 1.75;
+}
