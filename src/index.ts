@@ -7,11 +7,18 @@ import { ActivityType, Client, Events, GatewayIntentBits, MessageFlags } from 'd
 import { commands } from './commands';
 import { registerVoiceStateUpdate } from './events/voiceStateUpdate';
 import { loadBotEnv } from './utils/env';
+import { startHealthServer } from './utils/healthServer';
 
 // ────────────────────────────────────────────────
 // 1) ตรวจสอบค่าใน .env (Token / Client ID)
 // ────────────────────────────────────────────────
 const env = loadBotEnv();
+
+// ────────────────────────────────────────────────
+// 1.5) เปิด HTTP health server สำหรับ Render (ทำงานเฉพาะเมื่อมีตัวแปร PORT)
+//      Render Web Service ต้องให้แอปเปิดพอร์ต ไม่งั้นจะขึ้น "No open ports detected"
+// ────────────────────────────────────────────────
+startHealthServer();
 
 // ────────────────────────────────────────────────
 // 2) สร้าง Client พร้อม Intents ที่จำเป็น

@@ -37,7 +37,8 @@ PROJECT BOT/
 │   └── utils/
 │       ├── config.ts           # อ่าน/เขียน config.json
 │       ├── embeds.ts           # สร้าง Embed + นิยามสี Join/Leave/Move
-│       └── env.ts              # ตรวจสอบค่าใน .env ก่อนรันบอท
+│       ├── env.ts              # ตรวจสอบค่าใน .env ก่อนรันบอท
+│       └── healthServer.ts     # HTTP server จิ๋วสำหรับ Render (เปิดพอร์ตตาม PORT)
 ├── .env                        # ⭐ ใส่ Token, Client ID, Guild ID ที่นี่
 ├── .env.example                # ตัวอย่างไฟล์ .env
 ├── config.json                 # เก็บ ID ห้อง log แยกตามเซิร์ฟเวอร์ (บอทเขียนเอง)
@@ -164,6 +165,25 @@ npm run dev   # เปิดที่ http://localhost:3000
 
 - ปุ่ม "เชิญ Rem เข้าเซิร์ฟเวอร์" ใช้ลิงก์เชิญจริงของบอท — แก้ได้ที่ตัวแปร `INVITE_URL` ใน `website/src/app/page.tsx`
 - Deploy ซ้ำเมื่อแก้เว็บ: `cd website && npx vercel deploy --prod --yes`
+
+---
+
+## ☁️ Deploy บอทขึ้น Render (ออนไลน์ 24/7)
+
+โปรเจกต์นี้รองรับการรันบน [Render](https://render.com) เป็น **Web Service** ได้ทันที
+(มี health server ในตัว เปิดพอร์ตตาม `PORT` ที่ Render ตั้งให้อัตโนมัติ)
+
+1. สร้าง **Web Service** → เชื่อม repo นี้ (Root Directory: `.`)
+   - **Build Command:** `npm install`
+   - **Start Command:** `npm start`
+2. ใส่ **Environment Variables**: `DISCORD_TOKEN`, `CLIENT_ID` (และ `GUILD_ID` ถ้าต้องการ)
+3. กด Deploy — รอสักครู่แล้วบอทจะออนไลน์
+
+> ⚠️ **ข้อควรรู้เมื่อรันบน Render**
+> - **Free tier จะ sleep** เมื่อไม่มีคนเข้า ~15 นาที → บอทจะออฟไลน์ชั่วคราวจนมี request เข้า
+>   แก้ได้โดยใช้บริการ ping ฟรี (เช่น UptimeRobot, cron-job.org) ยิงไปที่ `https://<ชื่อ-service>.onrender.com` ทุก 5–10 นาที
+> - โฟลเดอร์ของ Render เป็นแบบชั่วคราว — `config.json` (ผลจาก `/setup`) จะรีเซ็ตทุกครั้งที่ deploy ใหม่ → รัน `/setup` อีกครั้งหลัง deploy
+> - ให้รันบอท **ครั้งละหนึ่งตัวเท่านั้น** (ถ้ารันบน Render อยู่ อย่าเปิด `npm run dev` ที่เครื่องพร้อมกัน)
 
 ---
 
