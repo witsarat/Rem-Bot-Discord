@@ -1,0 +1,15 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+
+# secrets — ห้าม commit ไฟล์นี้เด็ดขาด!
+.env
+
+# ข้อมูลรันไทม์ของแต่ละเครื่อง (บอทสร้างใหม่ได้อัตโนมัติ)
+config.json
+
+# logs & misc
+*.log
+.DS_Store
