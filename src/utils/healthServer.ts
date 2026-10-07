@@ -6,6 +6,7 @@
  * - บนเครื่องตัวเอง (npm run dev) จะข้ามไป ไม่กินพอร์ตทิ้ง
  */
 import http from 'http';
+import { isDbConfigured, isDbReady } from './db';
 
 /** เริ่ม health server (ถ้ามีการตั้งค่า PORT) */
 export function startHealthServer(): void {
@@ -20,6 +21,7 @@ export function startHealthServer(): void {
       JSON.stringify({
         status: 'ok',
         bot: 'Rem — Voice Log Bot',
+        db: isDbReady() ? 'connected' : isDbConfigured() ? 'error' : 'off',
         uptime: Math.floor(process.uptime()),
         time: new Date().toISOString(),
       }),

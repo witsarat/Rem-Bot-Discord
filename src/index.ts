@@ -8,6 +8,7 @@ import { commands } from './commands';
 import { registerVoiceStateUpdate } from './events/voiceStateUpdate';
 import { loadBotEnv } from './utils/env';
 import { startHealthServer } from './utils/healthServer';
+import { initDb } from './utils/db';
 
 // ────────────────────────────────────────────────
 // 1) ตรวจสอบค่าใน .env (Token / Client ID)
@@ -19,6 +20,12 @@ const env = loadBotEnv();
 //      Render Web Service ต้องให้แอปเปิดพอร์ต ไม่งั้นจะขึ้น "No open ports detected"
 // ────────────────────────────────────────────────
 startHealthServer();
+
+// ────────────────────────────────────────────────
+// 1.6) เชื่อมต่อฐานข้อมูลออนไลน์ ถ้าตั้งค่า DATABASE_URL (สร้างตารางให้อัตโนมัติ)
+//      ถ้าไม่ได้ตั้ง / เชื่อมต่อไม่ได้ → บอทจะใช้ config.json แบบเดิมแทน
+// ────────────────────────────────────────────────
+void initDb();
 
 // ────────────────────────────────────────────────
 // 2) สร้าง Client พร้อม Intents ที่จำเป็น

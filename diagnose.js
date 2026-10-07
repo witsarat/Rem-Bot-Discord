@@ -104,6 +104,41 @@ async function main() {
     }
   }
 
+  console.log('\n━━━ [5] ฐานข้อมูลออนไลน์ (DATABASE_URL) ━━━');
+  const dbUrl = (process.env.DATABASE_URL || '').trim();
+  if (!dbUrl) {
+    console.log('➖ ไม่ได้ตั้งค่า — เก็บค่าในไฟล์ config.json (บน Render จะหายเมื่อ deploy ใหม่)');
+    console.log('   → วิธีตั้งค่า Supabase ดูใน README หัวข้อ "ฐานข้อมูลออนไลน์"');
+  } else {
+    let dbHost = '(อ่าน host ไม่ได้)';
+    try {
+      dbHost = new URL(dbUrl).hostname;
+    } catch {}
+    console.log('ตั้งค่าแล้ว (host: ' + dbHost + ')');
+    try {
+      const { Pool } = require('pg');
+      const pool = new Pool({
+        connectionString: dbUrl,
+        ssl: { rejectUnauthorized: false },
+        connectionTimeoutMillis: 10000,
+      });
+      const gs = await pool.query('SELECT count(*)::int AS n FROM guild_settings');
+      const vl = await pool.query('SELECT count(*)::int AS n FROM voice_logs');
+      console.log('✅ เชื่อมต่อได้ — เซิร์ฟเวอร์ที่ตั้งค่าห้อง:', gs.rows[0].n, '| ประวัติ log:', vl.rows[0].n, 'รายการ');
+      const recent = await pool.query(
+        'SELECT event, username, channel_name, from_channel_name, to_channel_name, created_at FROM voice_logs ORDER BY id DESC LIMIT 3',
+      );
+      for (const r of recent.rows) {
+        const detail = r.event === 'move' ? r.from_channel_name + ' → ' + r.to_channel_name : r.channel_name;
+        console.log('  •', new Date(r.created_at).toISOString(), '[' + r.event + ']', r.username, detail ? '(' + detail + ')' : '');
+      }
+      await pool.end();
+    } catch (err) {
+      console.log('❌ เชื่อมต่อไม่สำเร็จ:', err.message || err);
+      console.log('   → ตรวจว่าใช้ Connection pooling URI (ไม่ใช่ Direct/IPv6) และรหัสผ่านถูกต้อง');
+    }
+  }
+
   console.log('\n━━━ สรุปวิธีแก้ "คำสั่งไม่ขึ้น" ━━━');
   console.log('1) ยังไม่เคยรัน:            npm run deploy');
   console.log('2) ลงแล้วแต่ไม่เห็นในดิส:   กด Ctrl+R ที่ตัว Discord; ตรวจว่าลิงก์เชิญมี scope applications.commands');

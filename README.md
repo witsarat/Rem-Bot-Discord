@@ -18,6 +18,7 @@
 | 🚫 ข้ามบอท | ไม่บันทึกการเคลื่อนไหวของบอทด้วยกันเอง |
 | 🔇 ข้าม mute/deafen | ปิด/เปิดไมค์ เปิด/ปิดกล้อง ไม่ถือเป็นเข้า-ออกห้อง จึงไม่ถูกบันทึก |
 | 🌍 ใช้ได้ทุกเซิร์ฟเวอร์ | ลงทะเบียนคำสั่งแบบ Global — เชิญบอทเข้าเซิร์ฟเวอร์ไหนก็ใช้ `/setup` `/help` ได้ (เซิร์ฟเวอร์ใหม่รอได้ถึง ~1 ชม.) |
+| 🗄️ เก็บ log ลงฐานข้อมูล | รองรับ PostgreSQL ออนไลน์ (Supabase/Neon) — ประวัติ log + ค่าห้อง log อยู่ถาวร ไม่หายเมื่อ deploy ใหม่ |
 
 ---
 
@@ -35,7 +36,8 @@ PROJECT BOT/
 │   ├── events/
 │   │   └── voiceStateUpdate.ts # ระบบดักจับเข้า-ออก-ย้ายห้องเสียง
 │   └── utils/
-│       ├── config.ts           # อ่าน/เขียน config.json
+│       ├── config.ts           # ค่าห้อง log ของแต่ละเซิร์ฟเวอร์ (DB → ไฟล์สำรอง)
+│       ├── db.ts               # ฐานข้อมูลออนไลน์ PostgreSQL (Supabase/Neon)
 │       ├── embeds.ts           # สร้าง Embed + นิยามสี Join/Leave/Move
 │       ├── env.ts              # ตรวจสอบค่าใน .env ก่อนรันบอท
 │       └── healthServer.ts     # HTTP server จิ๋วสำหรับ Render (เปิดพอร์ตตาม PORT)
@@ -168,6 +170,30 @@ npm run dev   # เปิดที่ http://localhost:3000
 
 ---
 
+## 🗄️ ฐานข้อมูลออนไลน์ (ไม่บังคับ — ให้ข้อมูลอยู่ถาวร)
+
+บอทรองรับการเก็บ **ค่าห้อง log ของแต่ละเซิร์ฟเวอร์** และ **ประวัติ voice log ทุกเหตุการณ์**
+ลงฐานข้อมูล PostgreSQL ออนไลน์ (เช่น [Supabase](https://supabase.com) — ฟรี)
+โดยตั้งค่าแค่ `DATABASE_URL` — บอทจะสร้างตาราง `guild_settings` + `voice_logs` ให้อัตโนมัติ
+
+**วิธีตั้งค่า (Supabase):**
+
+1. สมัคร/เข้าสู่ระบบ [supabase.com](https://supabase.com) → **New project**
+   (ตั้งรหัสผ่านฐานข้อมูล, Region: **Southeast Asia (Singapore)**)
+2. รอสร้างเสร็จ → กดปุ่ม **Connect** → เลือก **Connection pooling → Transaction** → Copy URI
+   > ⚠️ **อย่าใช้ Direct connection** — เป็น IPv6 ซึ่ง Render เชื่อมต่อไม่ได้ ให้ใช้ pooler เท่านั้น
+3. เอา URI ไปใส่ 2 ที่:
+   - **บน Render:** Service → **Environment** → Add Environment Variable → ชื่อ `DATABASE_URL` → Save (Render จะ redeploy ให้เอง)
+   - **ในเครื่อง (สำหรับรัน/ทดสอบ local):** เพิ่มบรรทัด `DATABASE_URL=...` ใน `.env`
+     (ถ้าในสตริงมี `[YOUR-PASSWORD]` ให้แทนด้วยรหัสผ่านจริง)
+4. หลังบอทเริ่มใหม่ → รัน `/setup` ในดิสได้เลย — ข้อมูลจะอยู่ใน DB
+   **รันครั้งเดียวใช้ได้ตลอด แม้ deploy ใหม่กี่ครั้งก็ไม่หาย**
+
+> 💡 ถ้าไม่ตั้ง `DATABASE_URL` บอทจะทำงานแบบเดิม (เก็บลงไฟล์ `config.json`) — ไม่พัง
+> 💡 อยากดูประวัติ log สวย ๆ: เข้าหน้า Supabase → **Table Editor** → ตาราง `voice_logs`
+
+---
+
 ## ☁️ Deploy บอทขึ้น Render (ออนไลน์ 24/7)
 
 โปรเจกต์นี้รองรับการรันบน [Render](https://render.com) เป็น **Web Service** ได้ทันที
@@ -182,7 +208,7 @@ npm run dev   # เปิดที่ http://localhost:3000
 > ⚠️ **ข้อควรรู้เมื่อรันบน Render**
 > - **Free tier จะ sleep** เมื่อไม่มีคนเข้า ~15 นาที → บอทจะออฟไลน์ชั่วคราวจนมี request เข้า
 >   แก้ได้โดยใช้บริการ ping ฟรี (เช่น UptimeRobot, cron-job.org) ยิงไปที่ `https://<ชื่อ-service>.onrender.com` ทุก 5–10 นาที
-> - โฟลเดอร์ของ Render เป็นแบบชั่วคราว — `config.json` (ผลจาก `/setup`) จะรีเซ็ตทุกครั้งที่ deploy ใหม่ → รัน `/setup` อีกครั้งหลัง deploy
+> - โฟลเดอร์ของ Render เป็นแบบชั่วคราว — `config.json` (ผลจาก `/setup`) จะรีเซ็ตทุกครั้งที่ deploy ใหม่ → **แนะนำเปิดใช้ฐานข้อมูลออนไลน์ (หัวข้อ 🗄️ ด้านบน) ข้อมูลจะอยู่ถาวร** หรือถ้าไม่ใช้ DB ให้รัน `/setup` อีกครั้งหลัง deploy
 > - ให้รันบอท **ครั้งละหนึ่งตัวเท่านั้น** (ถ้ารันบน Render อยู่ อย่าเปิด `npm run dev` ที่เครื่องพร้อมกัน)
 
 ---
@@ -205,6 +231,7 @@ npm run dev   # เปิดที่ http://localhost:3000
 - `guilds.<guildId>.logChannelId` — ID ของห้อง `voice-logs` ของเซิร์ฟเวอร์นั้น
 - ถ้าเซิร์ฟเวอร์ไหนยังไม่เคยรัน `/setup` บอทจะข้ามการบันทึก log ของเซิร์ฟเวอร์นั้น
 - ไฟล์นี้อยู่ใน `.gitignore` — แต่ละเครื่องมีค่าของตัวเอง และบอทจะสร้างไฟล์ใหม่ให้อัตโนมัติถ้าไม่มี
+- ถ้าเปิดใช้ฐานข้อมูลออนไลน์ (`DATABASE_URL`) ค่าห้องจะถูกเก็บใน DB แทน — ไฟล์นี้จะถูกใช้เฉพาะโหมดสำรอง
 
 ---
 

@@ -12,6 +12,7 @@ import {
   SlashCommandBuilder,
 } from 'discord.js';
 import { setLogChannelId } from '../utils/config';
+import { isDbReady } from '../utils/db';
 
 /** ชื่อห้องที่จะใช้เก็บ log */
 const LOG_CHANNEL_NAME = 'voice-logs';
@@ -70,8 +71,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     }
   }
 
-  // 3) บันทึก Channel ID ลง config.json (แยกตาม Guild)
-  setLogChannelId(guild.id, channel.id);
+  // 3) บันทึก Channel ID (ลงฐานข้อมูลออนไลน์ถ้าเปิดใช้ — ไม่มีค่อยลง config.json)
+  await setLogChannelId(guild.id, channel.id);
 
   // 4) ตอบกลับผู้ใช้ (เห็นเฉพาะคนที่พิมพ์คำสั่ง)
   const embed = new EmbedBuilder()
@@ -86,7 +87,9 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       { name: '📌 ห้องบันทึก', value: `${channel}`, inline: true },
       { name: '🆔 Channel ID', value: `\`${channel.id}\``, inline: true },
     )
-    .setFooter({ text: `บันทึกค่าไว้ใน config.json แล้ว • เซิร์ฟเวอร์: ${guild.name}` })
+    .setFooter({
+      text: `บันทึกค่าไว้ใน${isDbReady() ? 'ฐานข้อมูลออนไลน์' : 'ไฟล์ config.json'} แล้ว • เซิร์ฟเวอร์: ${guild.name}`,
+    })
     .setTimestamp();
 
   await interaction.editReply({ embeds: [embed] });
