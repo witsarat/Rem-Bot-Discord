@@ -142,7 +142,7 @@ async function main() {
   console.log('\n━━━ สรุปวิธีแก้ "คำสั่งไม่ขึ้น" ━━━');
   console.log('1) ยังไม่เคยรัน:            npm run deploy');
   console.log('2) ลงแล้วแต่ไม่เห็นในดิส:   กด Ctrl+R ที่ตัว Discord; ตรวจว่าลิงก์เชิญมี scope applications.commands');
-  console.log('3) เซิร์ฟเวอร์ใหม่ (Global): รอได้ถึง ~1 ชม. → เพิ่ม Server ID ใน GUILD_ID แล้ว npm run deploy เพื่อให้ขึ้นทันที');
+  console.log('3) เซิร์ฟเวอร์ใหม่ (Global): รอได้ถึง ~1 ชม. → รัน npm run deploy เพื่อให้ขึ้นทันทีอัตโนมัติ (ลงให้ทุกดิสที่บอทอยู่)');
   console.log('4) ขึ้น Missing Access:     GUILD_ID ชี้เซิร์ฟเวอร์ที่บอทไม่ได้อยู่ → เชิญบอทเข้าเซิร์ฟเวอร์นั้นก่อน');
 }
 
