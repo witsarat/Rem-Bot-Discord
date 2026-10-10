@@ -164,46 +164,13 @@ npm run dev
 
 ---
 
-## 🌐 เว็บไซต์ + แดชบอร์ดจัดการบอท (`website/`)
+## 🌐 เว็บไซต์ + แดชบอร์ด → แยกไป repo ของตัวเองแล้ว
 
-เว็บประชาสัมพันธ์ + **แดชบอร์ดจัดการบอท** (login ด้วย Discord) — Next.js 16 + Tailwind CSS 4 ธีมขาว–ฟ้า
+เว็บและแดชบอร์ด (login ด้วย Discord / ตั้งค่าห้อง / ดู log / อันดับผู้ใช้) แยกเป็นโปรเจกต์เดี่ยวแล้ว:
 
-🌍 **เปิดใช้งานจริงแล้ว: https://rem-bot.vercel.app (Vercel)**
-
-| หน้า | ทำอะไร |
-|---|---|
-| `/` | หน้าแรก — ฟีเจอร์ คำสั่ง วิธีใช้งาน |
-| `/dashboard` | เข้าสู่ระบบด้วย Discord → เลือกเซิร์ฟเวอร์ (เห็นเฉพาะที่ตัวเองเป็นผู้ดูแล) |
-| `/dashboard/<guildId>` | ตั้งค่าห้อง log / ห้องรายงาน + ดูประวัติ voice log + สถิติ |
-| `/terms` · `/privacy` | ข้อกำหนดการให้บริการ · นโยบายความเป็นส่วนตัว |
-| `/api/linked-roles/verify` | URL ยืนยัน **Linked Roles** (ใช้กรอกใน Developer Portal) |
-
-### ตั้งค่าครั้งแรก (ทำครั้งเดียว)
-
-1. **Env ของเว็บ** — คัดลอก `website/.env.example` → `website/.env.local` แล้วเติมค่า
-   (บน Vercel: ใส่ค่าเดียวกันใน Project → Settings → Environment Variables):
-   `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_TOKEN`, `DATABASE_URL`, `SESSION_SECRET` (สุ่มด้วย `openssl rand -hex 32`)
-2. **Developer Portal → แอปบอท → OAuth2 → Redirects** เพิ่ม 2 URL:
-   - `https://rem-bot.vercel.app/api/auth/callback`
-   - `https://rem-bot.vercel.app/api/linked-roles/verify`
-   (ถ้ารันในเครื่อง ใช้ `http://localhost:3000` แทน)
-3. **Developer Portal → General Information** กรอก:
-   - Linked Roles Verification URL = `https://rem-bot.vercel.app/api/linked-roles/verify`
-   - Terms of Service URL = `https://rem-bot.vercel.app/terms`
-   - Privacy Policy URL = `https://rem-bot.vercel.app/privacy`
-4. **ลงทะเบียนฟิลด์ยศ Linked Roles** (ครั้งเดียว): `cd website && node --env-file=.env.local scripts/register-role-metadata.mts`
-
-### รัน / deploy เว็บ
-
-```bash
-cd website
-npm install
-npm run dev                      # เปิดที่ http://localhost:3000
-npx vercel deploy --prod --yes   # deploy ขึ้น production
-```
-
-- ปุ่ม "เพิ่มบอท" ใช้ลิงก์เชิญจริง — แก้ได้ที่ตัวแปร `INVITE_URL` ใน `website/src/app/page.tsx`
-- แดชบอร์ดตรวจสิทธิ์จาก Discord จริงทุกครั้ง (Administrator / Manage Server) — ข้อมูลแสดงเฉพาะเซิร์ฟเวอร์ที่ผู้ใช้ดูแล
+- 📦 **Repo เว็บ:** https://github.com/witsarat/Rem-Bot-Website
+- 🌍 **Live:** https://rem-bot.vercel.app (Vercel ผูกกับ repo เว็บโดยตรง — push แล้ว deploy อัตโนมัติ)
+- วิธีตั้งค่า env / Developer Portal / deploy → ดูใน README ของ repo เว็บ
 
 ---
 
