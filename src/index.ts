@@ -6,6 +6,7 @@ import 'dotenv/config';
 import { ActivityType, Client, Events, GatewayIntentBits, MessageFlags } from 'discord.js';
 import { commands } from './commands';
 import { registerVoiceStateUpdate } from './events/voiceStateUpdate';
+import { startWeeklyScheduler } from './utils/weeklyReport';
 import { loadBotEnv } from './utils/env';
 import { startHealthServer } from './utils/healthServer';
 import { initDb } from './utils/db';
@@ -40,6 +41,9 @@ const client = new Client({
 // 3) ลงทะเบียนระบบ Voice Log
 // ────────────────────────────────────────────────
 registerVoiceStateUpdate(client);
+
+// 3.05) ระบบรายงานประจำสัปดาห์ — ส่งอัตโนมัติทุกวันจันทร์ 09:00 น. (เวลาไทย)
+startWeeklyScheduler(client);
 
 // 3.1) จัดการ Slash Commands (/setup, /help)
 client.on(Events.InteractionCreate, async (interaction) => {

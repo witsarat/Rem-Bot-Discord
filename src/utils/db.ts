@@ -66,6 +66,15 @@ export async function initDb(): Promise<void> {
     await client.query(
       'CREATE INDEX IF NOT EXISTS idx_voice_logs_guild_time ON voice_logs (guild_id, created_at DESC)',
     );
+
+    // อัปเดตโครงสร้างสำหรับฟีเจอร์ใหม่ (ปลอดภัย — รันซ้ำได้เสมอ)
+    // weekly_channel_id    : ห้องที่รับรายงานประจำสัปดาห์
+    // last_weekly_sent_at  : เวลาส่งรายงานล่าสุด (กันส่งซ้ำข้ามการรีสตาร์ท)
+    // log_channel_id       : เดิม NOT NULL → ผ่อนเป็น nullable เพื่อรองรับดิสที่ตั้งแค่รายงาน
+    await client.query('ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS weekly_channel_id TEXT');
+    await client.query('ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS last_weekly_sent_at TIMESTAMPTZ');
+    await client.query('ALTER TABLE guild_settings ALTER COLUMN log_channel_id DROP NOT NULL');
+
     ready = true;
     console.log('🗄️ เชื่อมต่อฐานข้อมูลออนไลน์แล้ว — เก็บ log + ห้องลง DB');
   } catch (error) {
@@ -119,5 +128,96 @@ export async function insertVoiceLog(entry: VoiceLogEntry): Promise<void> {
     );
   } catch (error) {
     console.error('[db] บันทึก voice log ไม่สำเร็จ:', error);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// ค่าห้องรายงานประจำสัปดาห์ + เวลาส่งล่าสุด (ใช้โดยระบบรายงานอัตโนมัติ)
+// ─────────────────────────────────────────────────────────────
+
+/** อ่านค่าห้องรายงานประจำสัปดาห์จาก DB — undefined = ยังไม่มีแถวของเซิร์ฟเวอร์นี้, null = ปิดไว้ */
+export async function getWeeklyChannelDb(guildId: string): Promise<string | null | undefined> {
+  const client = getPool();
+  if (!client || !ready) return undefined;
+
+  try {
+    const result = await client.query<{ weekly_channel_id: string | null }>(
+      'SELECT weekly_channel_id FROM guild_settings WHERE guild_id = $1',
+      [guildId],
+    );
+    if (!result.rows.length) return undefined;
+    return result.rows[0].weekly_channel_id;
+  } catch (error) {
+    console.error('[db] อ่านค่าห้องรายงานไม่สำเร็จ:', error);
+    return undefined;
+  }
+}
+
+/** ตั้งค่าห้องรายงานประจำสัปดาห์ (null = ปิด) — คืน false ถ้า DB ไม่พร้อม/บันทึกไม่สำเร็จ */
+export async function setWeeklyChannelDb(guildId: string, channelId: string | null): Promise<boolean> {
+  const client = getPool();
+  if (!client || !ready) return false;
+
+  try {
+    await client.query(
+      `INSERT INTO guild_settings (guild_id, weekly_channel_id, updated_at)
+       VALUES ($1, $2, now())
+       ON CONFLICT (guild_id)
+       DO UPDATE SET weekly_channel_id = EXCLUDED.weekly_channel_id, updated_at = now()`,
+      [guildId, channelId],
+    );
+    return true;
+  } catch (error) {
+    console.error('[db] บันทึกค่าห้องรายงานไม่สำเร็จ:', error);
+    return false;
+  }
+}
+
+/** เซิร์ฟเวอร์ที่มีห้องรายงานประจำสัปดาห์ตั้งไว้ (ใช้โดยตัวส่งอัตโนมัติ) */
+export interface WeeklyTarget {
+  guildId: string;
+  channelId: string;
+  /** เวลาที่ส่งรายงานล่าสุด (null = ยังไม่เคยส่ง) */
+  lastSent: Date | null;
+}
+
+/** รายชื่อเซิร์ฟเวอร์ที่ต้องส่งรายงานประจำสัปดาห์ */
+export async function getWeeklyTargets(): Promise<WeeklyTarget[]> {
+  const client = getPool();
+  if (!client || !ready) return [];
+
+  try {
+    const result = await client.query<{
+      guild_id: string;
+      weekly_channel_id: string;
+      last_weekly_sent_at: Date | null;
+    }>(
+      `SELECT guild_id, weekly_channel_id, last_weekly_sent_at
+         FROM guild_settings
+        WHERE weekly_channel_id IS NOT NULL`,
+    );
+    return result.rows.map((row) => ({
+      guildId: row.guild_id,
+      channelId: row.weekly_channel_id,
+      lastSent: row.last_weekly_sent_at,
+    }));
+  } catch (error) {
+    console.error('[db] ดึงรายชื่อเซิร์ฟเวอร์สำหรับรายงานไม่สำเร็จ:', error);
+    return [];
+  }
+}
+
+/** บันทึกเวลาที่ส่งรายงานประจำสัปดาห์ล่าสุด (กันส่งซ้ำ) */
+export async function markWeeklySent(guildId: string): Promise<void> {
+  const client = getPool();
+  if (!client || !ready) return;
+
+  try {
+    await client.query(
+      'UPDATE guild_settings SET last_weekly_sent_at = now() WHERE guild_id = $1',
+      [guildId],
+    );
+  } catch (error) {
+    console.error('[db] บันทึกเวลาส่งรายงานไม่สำเร็จ:', error);
   }
 }

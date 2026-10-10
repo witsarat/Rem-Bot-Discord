@@ -4,17 +4,31 @@
  * วิธีเพิ่มคำสั่งใหม่: สร้างไฟล์ในโฟลเดอร์นี้ (export `data` + `execute`)
  * แล้ว import เพิ่มในลิสต์ด้านล่าง
  */
-import { ChatInputCommandInteraction, Collection, SlashCommandBuilder } from 'discord.js';
+import {
+  ChatInputCommandInteraction,
+  Collection,
+  SlashCommandBuilder,
+  SlashCommandOptionsOnlyBuilder,
+  SlashCommandSubcommandsOnlyBuilder,
+} from 'discord.js';
 import * as help from './help';
 import * as setup from './setup';
+import * as top from './top';
+import * as weekly from './weekly';
+
+/** รูปแบบ builder ที่ discord.js คืนกลับตามชนิดตัวเลือก (ธรรมดา / เฉพาะ options / เฉพาะ subcommands) */
+export type CommandData =
+  | SlashCommandBuilder
+  | SlashCommandOptionsOnlyBuilder
+  | SlashCommandSubcommandsOnlyBuilder;
 
 export interface BotCommand {
-  data: SlashCommandBuilder;
+  data: CommandData;
   execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
 }
 
 export const commands = new Collection<string, BotCommand>();
 
-for (const command of [setup, help]) {
+for (const command of [setup, help, top, weekly]) {
   commands.set(command.data.name, command);
 }

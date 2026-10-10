@@ -13,14 +13,16 @@
  */
 import fs from 'fs';
 import path from 'path';
-import { getPool, isDbReady } from './db';
+import { getPool, getWeeklyChannelDb, isDbReady, setWeeklyChannelDb } from './db';
 
 /** ตำแหน่งไฟล์ config.json (โหมดสำรอง — อยู่ที่โฟลเดอร์รากของโปรเจกต์) */
 const CONFIG_PATH = path.join(__dirname, '..', '..', 'config.json');
 
 export interface GuildConfig {
   /** ID ของห้องข้อความที่ใช้บันทึก voice log */
-  logChannelId: string;
+  logChannelId?: string;
+  /** ID ของห้องที่รับรายงานประจำสัปดาห์ */
+  weeklyChannelId?: string;
   /** เวลาที่ตั้งค่าล่าสุด (ISO string) */
   updatedAt?: string;
 }
@@ -84,8 +86,40 @@ export async function setLogChannelId(guildId: string, channelId: string): Promi
 
   const config = readConfig();
   config.guilds[guildId] = {
+    ...config.guilds[guildId],
     logChannelId: channelId,
     updatedAt: new Date().toISOString(),
   };
+  writeConfig(config);
+}
+
+/** ดู ID ห้องรายงานประจำสัปดาห์ (อ่านจาก DB ก่อน → ไม่มีค่อยอ่านไฟล์) */
+export async function getWeeklyChannelId(guildId: string): Promise<string | undefined> {
+  const pool = getPool();
+  if (pool && isDbReady()) {
+    const fromDb = await getWeeklyChannelDb(guildId);
+    // มีแถวใน DB แล้ว → ใช้ค่าจาก DB (null = ปิดไว้); ไม่มีแถว → ลองอ่านไฟล์
+    if (fromDb !== undefined) return fromDb ?? undefined;
+  }
+  return readConfig().guilds[guildId]?.weeklyChannelId;
+}
+
+/** บันทึก ID ห้องรายงานประจำสัปดาห์ (null = ปิด) — ลง DB ถ้าเปิดใช้ → ไม่งั้นลงไฟล์ */
+export async function setWeeklyChannelId(guildId: string, channelId: string | null): Promise<void> {
+  const pool = getPool();
+  if (pool && isDbReady()) {
+    const saved = await setWeeklyChannelDb(guildId, channelId);
+    if (saved) return;
+  }
+
+  const config = readConfig();
+  const entry = config.guilds[guildId] ?? {};
+  if (channelId) {
+    entry.weeklyChannelId = channelId;
+  } else {
+    delete entry.weeklyChannelId;
+  }
+  entry.updatedAt = new Date().toISOString();
+  config.guilds[guildId] = entry;
   writeConfig(config);
 }

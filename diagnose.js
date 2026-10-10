@@ -125,6 +125,12 @@ async function main() {
       const gs = await pool.query('SELECT count(*)::int AS n FROM guild_settings');
       const vl = await pool.query('SELECT count(*)::int AS n FROM voice_logs');
       console.log('✅ เชื่อมต่อได้ — เซิร์ฟเวอร์ที่ตั้งค่าห้อง:', gs.rows[0].n, '| ประวัติ log:', vl.rows[0].n, 'รายการ');
+      try {
+        const wk = await pool.query('SELECT count(*)::int AS n FROM guild_settings WHERE weekly_channel_id IS NOT NULL');
+        console.log('🗓️ เซิร์ฟเวอร์ที่ตั้งห้องรายงานประจำสัปดาห์:', wk.rows[0].n);
+      } catch {
+        console.log('🗓️ ยังไม่มีคอลัมน์รายงานประจำสัปดาห์ — บอทจะอัปเดตโครงสร้างให้อัตโนมัติเมื่อรันเวอร์ชันใหม่');
+      }
       const recent = await pool.query(
         'SELECT event, username, channel_name, from_channel_name, to_channel_name, created_at FROM voice_logs ORDER BY id DESC LIMIT 3',
       );
