@@ -66,6 +66,12 @@ export async function initDb(): Promise<void> {
     await client.query(
       'CREATE INDEX IF NOT EXISTS idx_voice_logs_guild_time ON voice_logs (guild_id, created_at DESC)',
     );
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS bot_guilds (
+        guild_id TEXT PRIMARY KEY,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
 
     // อัปเดตโครงสร้างสำหรับฟีเจอร์ใหม่ (ปลอดภัย — รันซ้ำได้เสมอ)
     // weekly_channel_id    : ห้องที่รับรายงานประจำสัปดาห์
@@ -219,5 +225,32 @@ export async function markWeeklySent(guildId: string): Promise<void> {
     );
   } catch (error) {
     console.error('[db] บันทึกเวลาส่งรายงานไม่สำเร็จ:', error);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// รายชื่อเซิร์ฟเวอร์ที่บอทอยู่ (ตาราง bot_guilds)
+// — ให้เว็บรู้ว่าบอทอยู่ดิสไหนได้โดยไม่ต้องใช้ bot token เลย
+// ─────────────────────────────────────────────────────────────
+
+/** ซิงก์รายชื่อเซิร์ฟเวอร์ที่บอทอยู่ลง DB (แทนที่ทั้งชุด — เรียกตอนออนไลน์ + ตอนเข้า/ออกดิส) */
+export async function syncBotGuilds(guildIds: string[]): Promise<void> {
+  const client = getPool();
+  if (!client || !ready) return;
+
+  try {
+    if (guildIds.length === 0) {
+      await client.query('DELETE FROM bot_guilds');
+      return;
+    }
+    await client.query('DELETE FROM bot_guilds WHERE guild_id <> ALL($1::text[])', [guildIds]);
+    await client.query(
+      `INSERT INTO bot_guilds (guild_id, updated_at)
+       SELECT unnest($1::text[]), now()
+       ON CONFLICT (guild_id) DO UPDATE SET updated_at = now()`,
+      [guildIds],
+    );
+  } catch (error) {
+    console.error('[db] ซิงก์รายชื่อเซิร์ฟเวอร์ของบอทไม่สำเร็จ:', error);
   }
 }

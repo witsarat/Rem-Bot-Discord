@@ -9,7 +9,7 @@ import { registerVoiceStateUpdate } from './events/voiceStateUpdate';
 import { startWeeklyScheduler } from './utils/weeklyReport';
 import { loadBotEnv } from './utils/env';
 import { startHealthServer } from './utils/healthServer';
-import { initDb } from './utils/db';
+import { initDb, syncBotGuilds } from './utils/db';
 
 // ────────────────────────────────────────────────
 // 1) ตรวจสอบค่าใน .env (Token / Client ID)
@@ -41,6 +41,14 @@ const client = new Client({
 // 3) ลงทะเบียนระบบ Voice Log
 // ────────────────────────────────────────────────
 registerVoiceStateUpdate(client);
+
+// 3.01) ซิงก์รายชื่อเซิร์ฟเวอร์กับ DB เมื่อบอทถูกเพิ่ม/ถูกนำออกจากดิส
+client.on(Events.GuildCreate, () => {
+  void syncBotGuilds([...client.guilds.cache.keys()]);
+});
+client.on(Events.GuildDelete, () => {
+  void syncBotGuilds([...client.guilds.cache.keys()]);
+});
 
 // 3.05) ระบบรายงานประจำสัปดาห์ — ส่งอัตโนมัติทุกวันจันทร์ 09:00 น. (เวลาไทย)
 startWeeklyScheduler(client);
@@ -78,6 +86,9 @@ client.once(Events.ClientReady, (readyClient) => {
   console.log(`📌 อยู่ในเซิร์ฟเวอร์: ${readyClient.guilds.cache.size} แห่ง`);
   console.log('💡 ถ้าคำสั่ง /setup /help ยังไม่ขึ้น ให้รัน: npm run deploy');
   console.log('──────────────────────────────────────────');
+
+  // ซิงก์รายชื่อเซิร์ฟเวอร์ที่บอทอยู่ลง DB (ให้เว็บรู้โดยไม่ต้องใช้ token)
+  void syncBotGuilds([...readyClient.guilds.cache.keys()]);
 
   // ตั้งค่าสถานะการเล่นให้ดูสวยงาม (ไม่บังคับ)
   readyClient.user.setPresence({
