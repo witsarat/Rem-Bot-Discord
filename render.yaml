@@ -1,0 +1,25 @@
+# render.yaml — ตั้งค่าบริการ Deploy บอท Rem บน Render (Infrastructure as Code)
+# วิธีใช้: Render Dashboard → New + → Blueprint → เลือก repo นี้ แล้วกด Apply
+# ค่าลับ (DISCORD_TOKEN / DATABASE_URL) จะถูกถามให้กรอกตอน Apply — ไม่เก็บไว้ใน repo
+services:
+  - type: web
+    name: rem-bot-discord
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    autoDeploy: true
+    buildCommand: npm install && npm run build
+    startCommand: npm run start:prod
+    healthCheckPath: /
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false # ← กรอกตอน Apply (โทเคนบอทจาก Developer Portal)
+      - key: DATABASE_URL
+        sync: false # ← กรอกตอน Apply (คัดลอกจากไฟล์ .env ในเครื่อง)
+      - key: CLIENT_ID
+        value: "1557023021825265775"
+      - key: GUILD_ID
+        value: "1067052518238072842"
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=384
