@@ -16,6 +16,7 @@ import {
 } from "@/lib/db";
 import { formatDateTimeTH, formatDurationTH, formatNumberTH } from "@/lib/format";
 import { computeVoiceLeaderboard } from "@/lib/voiceStats";
+import { SubmitButton } from "@/components/submit-button";
 import { saveSettings } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -267,7 +268,7 @@ export default async function GuildDetailPage(props: PageProps<"/dashboard/[guil
               </div>
             </div>
             <div className="mt-6 flex flex-wrap items-center gap-4">
-              <button type="submit" className="btn-primary">บันทึกการตั้งค่า</button>
+              <SubmitButton label="บันทึกการตั้งค่า" />
               <p className="text-xs text-slate-400">เฉพาะผู้ดูแลเซิร์ฟเวอร์เท่านั้นที่บันทึกได้</p>
             </div>
           </form>
