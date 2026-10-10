@@ -4,11 +4,15 @@
  */
 import { ChannelType, Guild, GuildMember } from 'discord.js';
 import {
+  clearShakeCooldown,
   isBeingShaken,
   pickBounceChannel,
+  SHAKE_COOLDOWN_MS,
   SHAKE_ROUNDS,
   SHAKE_TOTAL_MOVES,
+  shakeCooldownRemaining,
   shakeMember,
+  startShakeCooldown,
 } from './src/utils/shake';
 
 let failures = 0;
@@ -106,6 +110,19 @@ async function main(): Promise<void> {
     'มีห้องเดียว (ห้องตัวเอง) → คืน null',
     pickBounceChannel(fakeGuild(null, [voice('a', true)]), 'a') === null,
   );
+
+  // ── ทดสอบ 5: คูลดาวน์รวมต่อเซิร์ฟเวอร์ (กันกดรัว) ──
+  const guildKey = 'guild-cooldown-test';
+  check('ยังไม่เคยใช้ → ไม่มีคูลดาวน์', shakeCooldownRemaining(guildKey) === 0);
+  startShakeCooldown(guildKey);
+  const remaining = shakeCooldownRemaining(guildKey);
+  check(
+    'เริ่มคูลดาวน์แล้ว → เหลือ ~30 วิ',
+    remaining > SHAKE_COOLDOWN_MS - 2_000 && remaining <= SHAKE_COOLDOWN_MS,
+    `${remaining} ms`,
+  );
+  clearShakeCooldown(guildKey);
+  check('เคลียร์คูลดาวน์ (กรณีเขย่าไม่สำเร็จ) → ใช้ได้ทันที', shakeCooldownRemaining(guildKey) === 0);
 
   console.log('');
   console.log(failures === 0 ? '🎉 ผ่านทั้งหมด!' : `❌ ล้มเหลว ${failures} รายการ`);

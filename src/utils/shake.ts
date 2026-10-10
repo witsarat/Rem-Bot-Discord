@@ -23,6 +23,9 @@ export const SHAKE_MIN_DELAY_MS = 300;
 /** ดีเลย์สูงสุดที่อนุญาต */
 export const SHAKE_MAX_DELAY_MS = 3000;
 
+/** คูลดาวน์รวมต่อเซิร์ฟเวอร์หลังใช้คำสั่ง (กันกดรัว) — มิลลิวินาที */
+export const SHAKE_COOLDOWN_MS = 30_000;
+
 /** ระยะผ่อนผันหลังเขย่าเสร็จ (รออีเวนต์สุดท้ายจาก Discord ก่อนเลิกกัน log) */
 const SUPPRESS_GRACE_MS = 3000;
 
@@ -32,6 +35,25 @@ const shakingUsers = new Set<string>();
 /** กำลังถูกเขย่าอยู่ไหม (ใช้โดย voiceStateUpdate เพื่อข้ามการบันทึก log) */
 export function isBeingShaken(userId: string): boolean {
   return shakingUsers.has(userId);
+}
+
+/** คูลดาวน์รวมต่อเซิร์ฟเวอร์: guildId → เวลาที่จะใช้ /shake ได้อีกครั้ง (epoch ms) */
+const shakeCooldowns = new Map<string, number>();
+
+/** เวลาที่เหลือก่อนใช้ /shake ซ้ำได้ (มิลลิวินาที) — 0 = ใช้ได้เลย */
+export function shakeCooldownRemaining(guildId: string): number {
+  const readyAt = shakeCooldowns.get(guildId) ?? 0;
+  return Math.max(0, readyAt - Date.now());
+}
+
+/** เริ่มคูลดาวน์กันกดรัว (เรียกตอนเริ่มเขย่าจริง) */
+export function startShakeCooldown(guildId: string): void {
+  shakeCooldowns.set(guildId, Date.now() + SHAKE_COOLDOWN_MS);
+}
+
+/** เคลียร์คูลดาวน์ (ใช้เมื่อเขย่าไม่สำเร็จเลย — ให้ลองใหม่ได้ทันที) */
+export function clearShakeCooldown(guildId: string): void {
+  shakeCooldowns.delete(guildId);
 }
 
 export interface ShakeResult {

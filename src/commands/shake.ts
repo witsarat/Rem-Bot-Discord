@@ -14,17 +14,21 @@ import {
   SlashCommandBuilder,
 } from 'discord.js';
 import {
+  clearShakeCooldown,
   pickBounceChannel,
+  SHAKE_COOLDOWN_MS,
   SHAKE_DEFAULT_DELAY_MS,
   SHAKE_MAX_DELAY_MS,
   SHAKE_MIN_DELAY_MS,
   SHAKE_ROUNDS,
+  shakeCooldownRemaining,
   shakeMember,
+  startShakeCooldown,
 } from '../utils/shake';
 
 export const data = new SlashCommandBuilder()
   .setName('shake')
-  .setDescription(`🔔 เขย่าเรียกสมาชิก — ย้ายไป-กลับ ${SHAKE_ROUNDS} ครั้ง แล้วกลับห้องเดิม (ผู้ดูแลเซิร์ฟเวอร์)`)
+  .setDescription(`🔔 เขย่าเรียกสมาชิก — ย้ายไป-กลับ ${SHAKE_ROUNDS} ครั้ง แล้วกลับห้องเดิม • คูลดาวน์ ${SHAKE_COOLDOWN_MS / 1000} วิ (ผู้ดูแลเซิร์ฟเวอร์)`)
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addUserOption((option) =>
     option.setName('สมาชิก').setDescription('สมาชิกที่ต้องการเขย่า (ต้องอยู่ในห้องเสียงก่อน)').setRequired(true),
@@ -53,6 +57,18 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) {
     await interaction.reply({
       content: '⛔ คำสั่งนี้สำหรับผู้ดูแลเซิร์ฟเวอร์ (Administrator) เท่านั้น',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  // คูลดาวน์รวมต่อเซิร์ฟเวอร์ (กันกดรัว) — ต้องรอให้ครบก่อนใช้คำสั่งซ้ำ
+  const cooldownLeftMs = shakeCooldownRemaining(guild.id);
+  if (cooldownLeftMs > 0) {
+    await interaction.reply({
+      content:
+        `⏳ เพิ่งมีการเขย่าไปหมาด ๆ — รออีก **${Math.ceil(cooldownLeftMs / 1000)} วินาที** ` +
+        `ค่อยใช้ /shake อีกครั้งครับ (คูลดาวน์กันกดรัว ${SHAKE_COOLDOWN_MS / 1000} วิ)`,
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -107,9 +123,13 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   await interaction.editReply({ content: '🔔 กำลังเขย่า…' });
 
+  // เริ่มคูลดาวน์กันกดรัว (จะเคลียร์คืนถ้าเขย่าไม่สำเร็จเลย)
+  startShakeCooldown(guild.id);
+
   const result = await shakeMember(member, voiceChannel.id, bounceChannel.id, delay);
 
   if (result.moved === 0) {
+    clearShakeCooldown(guild.id); // เขย่าไม่ได้เลย → ให้ลองใหม่ได้ ไม่ต้องรอคูลดาวน์
     await interaction.editReply({
       content:
         '⚠️ เขย่าไม่สำเร็จเลย — ตรวจสอบว่าบอทมีสิทธิ์ **Move Members** และ**ยศของบอทสูงกว่ายศเป้าหมาย** แล้วลองใหม่',
@@ -132,8 +152,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     .setFooter({
       text:
         result.failed > 0
-          ? `มี ${result.failed} ครั้งที่ย้ายไม่สำเร็จ (อาจติดสิทธิ์/ยศ) • ไม่ถูกบันทึกเป็น voice log`
-          : 'สำเร็จทุกครั้ง • การเขย่าไม่ถูกบันทึกเป็น voice log',
+          ? `มี ${result.failed} ครั้งที่ย้ายไม่สำเร็จ (อาจติดสิทธิ์/ยศ) • คูลดาวน์ ${SHAKE_COOLDOWN_MS / 1000} วิ`
+          : `สำเร็จทุกครั้ง • ไม่ถูกบันทึกเป็น voice log • คูลดาวน์กันกดรัว ${SHAKE_COOLDOWN_MS / 1000} วิ`,
     })
     .setTimestamp();
 
