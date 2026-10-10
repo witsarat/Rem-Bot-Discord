@@ -66,6 +66,15 @@ export async function initDb(): Promise<void> {
     await client.query(
       'CREATE INDEX IF NOT EXISTS idx_voice_logs_guild_time ON voice_logs (guild_id, created_at DESC)',
     );
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS bot_settings (
+        id INTEGER PRIMARY KEY,
+        activity_type TEXT NOT NULL,
+        activity_text TEXT NOT NULL,
+        status TEXT NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
 
     // อัปเดตโครงสร้างสำหรับฟีเจอร์ใหม่ (ปลอดภัย — รันซ้ำได้เสมอ)
     // weekly_channel_id    : ห้องที่รับรายงานประจำสัปดาห์
@@ -219,5 +228,60 @@ export async function markWeeklySent(guildId: string): Promise<void> {
     );
   } catch (error) {
     console.error('[db] บันทึกเวลาส่งรายงานไม่สำเร็จ:', error);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// ค่า Rich Presence ของบอท (ตาราง bot_settings — ตั้งค่าผ่านหน้าเว็บ เฉพาะเจ้าของบอท)
+// ─────────────────────────────────────────────────────────────
+
+/** ค่าสถานะที่แสดงของบอท (ชื่อชนิดกิจกรรม/ข้อความ/สถานะ) */
+export interface BotPresenceSettings {
+  activityType: string;
+  activityText: string;
+  status: string;
+}
+
+/** อ่านค่า Rich Presence จาก DB — null = ยังไม่มีแถว (ใช้ค่าเริ่มต้นแทน) */
+export async function getBotPresenceDb(): Promise<BotPresenceSettings | null> {
+  const client = getPool();
+  if (!client || !ready) return null;
+
+  try {
+    const result = await client.query<{ activity_type: string; activity_text: string; status: string }>(
+      'SELECT activity_type, activity_text, status FROM bot_settings ORDER BY id LIMIT 1',
+    );
+    if (!result.rows.length) return null;
+    return {
+      activityType: result.rows[0].activity_type,
+      activityText: result.rows[0].activity_text,
+      status: result.rows[0].status,
+    };
+  } catch (error) {
+    console.error('[db] อ่านค่า Rich Presence ไม่สำเร็จ:', error);
+    return null;
+  }
+}
+
+/** บันทึกค่า Rich Presence ลง DB (แถวเดียว id=1 — ฝั่งเว็บเขียนตารางเดียวกัน) */
+export async function setBotPresenceDb(settings: BotPresenceSettings): Promise<boolean> {
+  const client = getPool();
+  if (!client || !ready) return false;
+
+  try {
+    await client.query(
+      `INSERT INTO bot_settings (id, activity_type, activity_text, status, updated_at)
+       VALUES (1, $1, $2, $3, now())
+       ON CONFLICT (id)
+       DO UPDATE SET activity_type = EXCLUDED.activity_type,
+                     activity_text = EXCLUDED.activity_text,
+                     status = EXCLUDED.status,
+                     updated_at = now()`,
+      [settings.activityType, settings.activityText, settings.status],
+    );
+    return true;
+  } catch (error) {
+    console.error('[db] บันทึกค่า Rich Presence ไม่สำเร็จ:', error);
+    return false;
   }
 }

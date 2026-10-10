@@ -3,13 +3,14 @@
  * ขั้นตอน: ตรวจ .env → สร้าง Client → ลงทะเบียนอีเวนต์/คำสั่ง → ล็อกอิน
  */
 import 'dotenv/config';
-import { ActivityType, Client, Events, GatewayIntentBits, MessageFlags } from 'discord.js';
+import { Client, Events, GatewayIntentBits, MessageFlags } from 'discord.js';
 import { commands } from './commands';
 import { registerVoiceStateUpdate } from './events/voiceStateUpdate';
 import { startWeeklyScheduler } from './utils/weeklyReport';
 import { loadBotEnv } from './utils/env';
 import { startHealthServer } from './utils/healthServer';
 import { initDb } from './utils/db';
+import { startPresenceSync } from './utils/presence';
 
 // ────────────────────────────────────────────────
 // 1) ตรวจสอบค่าใน .env (Token / Client ID)
@@ -79,11 +80,8 @@ client.once(Events.ClientReady, (readyClient) => {
   console.log('💡 ถ้าคำสั่ง /setup /help ยังไม่ขึ้น ให้รัน: npm run deploy');
   console.log('──────────────────────────────────────────');
 
-  // ตั้งค่าสถานะการเล่นให้ดูสวยงาม (ไม่บังคับ)
-  readyClient.user.setPresence({
-    activities: [{ name: 'บันทึก Voice Log 🔊', type: ActivityType.Watching }],
-    status: 'online',
-  });
+  // ตั้งค่าสถานะ (Rich Presence) — อ่านค่าจาก DB ที่ตั้งผ่านหน้าเว็บ และซิงก์ทุก 30 วินาที
+  startPresenceSync(readyClient);
 });
 
 // ────────────────────────────────────────────────
