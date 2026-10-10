@@ -2,16 +2,19 @@
  * src/utils/shake.ts
  * ระบบเขย่า (Shake) — ย้ายสมาชิกไปมาระหว่างสองห้องเสียง เพื่อเรียก/ปลุกให้รู้ตัว
  *
- * - จำนวนครั้ง "คงที่" (SHAKE_MOVES = 7 ครั้ง) — จงใจไม่ให้กำหนด
- *   (เป็นเลขคี่ → ย้ายสลับไปมาแล้วจบที่ "ห้องปลายทาง" เสมอ)
+ * - จำนวนครั้ง "คงที่": 5 ครั้ง (1 ครั้ง = ย้ายออกไปห้องสลับ แล้วย้ายกลับ)
+ *   → รวม 10 การย้าย และจบที่ "ห้องเดิม" ของสมาชิกเสมอ (ไม่ต้องเลือกห้องปลายทาง)
+ * - ห้องที่ใช้สลับเลือกให้อัตโนมัติ: AFK channel ก่อน → ห้องเสียงว่าง → ห้องเสียงอื่น
  * - ดีเลย์ระหว่างแต่ละครั้งกำหนดได้ (SHAKE_MIN_DELAY_MS – SHAKE_MAX_DELAY_MS, ค่าเริ่มต้น SHAKE_DEFAULT_DELAY_MS)
  * - ระหว่างถูกเขย่า การย้ายจะไม่ถูกบันทึกเป็น voice log (กัน log รก)
- *   และมีช่วงผ่อนผันหลังเขย่าเสร็จ เผื่ออีเวนต์ล่าสุดจาก Discord มาถึงช้า
  */
-import { GuildMember } from 'discord.js';
+import { ChannelType, Guild, GuildMember, VoiceBasedChannel } from 'discord.js';
 
-/** จำนวนครั้งที่ย้ายต่อการเขย่า 1 ครั้ง (คงที่ — ห้ามตั้งค่า) */
-export const SHAKE_MOVES = 7;
+/** จำนวนครั้งที่เขย่า (คงที่ — ห้ามตั้งค่า): 1 ครั้ง = ย้ายออก + ย้ายกลับ */
+export const SHAKE_ROUNDS = 5;
+
+/** จำนวนการย้ายทั้งหมดที่ใช้จริง (ออก-กลับ × จำนวนครั้ง) */
+export const SHAKE_TOTAL_MOVES = SHAKE_ROUNDS * 2;
 
 /** ดีเลย์เริ่มต้นระหว่างการย้าย (มิลลิวินาที) */
 export const SHAKE_DEFAULT_DELAY_MS = 800;
@@ -39,13 +42,31 @@ export interface ShakeResult {
 }
 
 /**
- * เขย่าสมาชิก: สลับไประหว่างห้องปัจจุบัน (startChannelId) กับห้องปลายทาง (targetChannelId)
- * จบแล้ว (ถ้าย้ายสำเร็จครบ) สมาชิกจะอยู่ที่ห้องปลายทาง
+ * เลือก "ห้องสลับ" ให้อัตโนมัติ (ไม่ใช่ห้องปัจจุบันของสมาชิก)
+ * ลำดับความสำคัญ: AFK channel → ห้องเสียงที่ไม่มีคนอยู่ → ห้องเสียงอื่น ๆ
+ * @returns หมายเลขห้อง หรือ null ถ้าเซิร์ฟเวอร์ไม่มีห้องเสียงอื่นเลย
+ */
+export function pickBounceChannel(guild: Guild, currentChannelId: string): VoiceBasedChannel | null {
+  const afk = guild.afkChannel;
+  if (afk && afk.id !== currentChannelId) return afk;
+
+  const others = [...guild.channels.cache.values()].filter(
+    (channel): channel is VoiceBasedChannel =>
+      channel.type === ChannelType.GuildVoice && channel.id !== currentChannelId,
+  );
+
+  return others.find((channel) => channel.members.size === 0) ?? others[0] ?? null;
+}
+
+/**
+ * เขย่าสมาชิก: สลับระหว่างห้องปัจจุบัน (startChannelId) กับห้องสลับ (bounceChannelId)
+ * ย้ายออก-กลับครบตามจำนวนคงที่ → จบที่ห้องเดิมเสมอ
+ * (มีขั้น "กลับห้องเดิม" สำรองไว้ด้วย เผื่อมีการย้ายพลาดกลางทาง)
  */
 export async function shakeMember(
   member: GuildMember,
   startChannelId: string,
-  targetChannelId: string,
+  bounceChannelId: string,
   delayMs: number,
 ): Promise<ShakeResult> {
   const delay = Math.min(Math.max(Math.round(delayMs), SHAKE_MIN_DELAY_MS), SHAKE_MAX_DELAY_MS);
@@ -54,17 +75,28 @@ export async function shakeMember(
   shakingUsers.add(member.id);
   try {
     let currentChannelId = startChannelId;
-    for (let i = 0; i < SHAKE_MOVES; i += 1) {
-      const nextChannelId = currentChannelId === startChannelId ? targetChannelId : startChannelId;
+
+    const move = async (channelId: string): Promise<void> => {
       try {
-        await member.voice.setChannel(nextChannelId);
+        await member.voice.setChannel(channelId);
         result.moved += 1;
-        currentChannelId = nextChannelId;
+        currentChannelId = channelId;
       } catch (error) {
         result.failed += 1;
         console.error(`[shake] ย้ายสมาชิก ${member.id} ไม่สำเร็จ:`, error);
       }
-      if (i < SHAKE_MOVES - 1) await sleep(delay); // หน่วงระหว่างครั้ง (ไม่หน่วงหลังครั้งสุดท้าย)
+    };
+
+    // ไป-กลับสลับกัน: ออก (ห้องสลับ) → กลับ (ห้องเดิม) × จำนวนครั้ง
+    for (let i = 0; i < SHAKE_TOTAL_MOVES; i += 1) {
+      const nextChannelId = i % 2 === 0 ? bounceChannelId : startChannelId;
+      await move(nextChannelId);
+      if (i < SHAKE_TOTAL_MOVES - 1) await sleep(delay); // หน่วงระหว่างครั้ง (ไม่หน่วงหลังครั้งสุดท้าย)
+    }
+
+    // สำรอง: ถ้ามีการย้ายพลาดกลางทางจนหลุดตำแหน่ง → ย้ายกลับห้องเดิมให้แน่ใจ
+    if (currentChannelId !== startChannelId) {
+      await move(startChannelId);
     }
   } finally {
     // เลิกกัน log แบบหน่วงเวลา — เผื่ออีเวนต์ล่าสุดจาก Discord มาถึงช้า

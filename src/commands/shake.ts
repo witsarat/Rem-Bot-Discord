@@ -1,12 +1,12 @@
 /**
  * src/commands/shake.ts
  * คำสั่ง /shake — 🔔 เขย่าเรียกสมาชิก (ย้ายไปมาระหว่างห้องเสียง) — ผู้ดูแลเซิร์ฟเวอร์เท่านั้น
- * - จำนวนครั้งคงที่ 7 ครั้ง (จบที่ห้องปลายทางที่เลือก)
+ * - เลือกแค่ "สมาชิก" — บอทเลือกห้องสลับให้เอง แล้วเขย่าไป-กลับ 5 ครั้ง (คงที่)
+ *   จบแล้วสมาชิกกลับมาอยู่ห้องเดิมเสมอ
  * - กำหนดดีเลย์ระหว่างแต่ละครั้งได้ (มิลลิวินาที)
  * - ระหว่างถูกเขย่า การย้ายจะไม่ถูกบันทึกเป็น voice log
  */
 import {
-  ChannelType,
   ChatInputCommandInteraction,
   EmbedBuilder,
   MessageFlags,
@@ -14,26 +14,20 @@ import {
   SlashCommandBuilder,
 } from 'discord.js';
 import {
+  pickBounceChannel,
   SHAKE_DEFAULT_DELAY_MS,
   SHAKE_MAX_DELAY_MS,
   SHAKE_MIN_DELAY_MS,
-  SHAKE_MOVES,
+  SHAKE_ROUNDS,
   shakeMember,
 } from '../utils/shake';
 
 export const data = new SlashCommandBuilder()
   .setName('shake')
-  .setDescription(`🔔 เขย่าเรียกสมาชิก — ย้ายไปมาระหว่างห้องเสียง ${SHAKE_MOVES} ครั้ง (ผู้ดูแลเซิร์ฟเวอร์)`)
+  .setDescription(`🔔 เขย่าเรียกสมาชิก — ย้ายไป-กลับ ${SHAKE_ROUNDS} ครั้ง แล้วกลับห้องเดิม (ผู้ดูแลเซิร์ฟเวอร์)`)
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addUserOption((option) =>
     option.setName('สมาชิก').setDescription('สมาชิกที่ต้องการเขย่า (ต้องอยู่ในห้องเสียงก่อน)').setRequired(true),
-  )
-  .addChannelOption((option) =>
-    option
-      .setName('ห้อง')
-      .setDescription('ห้องเสียงปลายทางที่จะเรียกไป (เขย่าเสร็จแล้วเขาจะอยู่ห้องนี้)')
-      .addChannelTypes(ChannelType.GuildVoice)
-      .setRequired(true),
   )
   .addIntegerOption((option) =>
     option
@@ -65,7 +59,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   }
 
   const targetUser = interaction.options.getUser('สมาชิก', true);
-  const targetChannel = interaction.options.getChannel('ห้อง', true);
   const delay = interaction.options.getInteger('ดีเลย์') ?? SHAKE_DEFAULT_DELAY_MS;
 
   if (targetUser.bot) {
@@ -103,16 +96,18 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return;
   }
 
-  if (voiceChannel.id === targetChannel.id) {
+  // เลือก "ห้องสลับ" ให้อัตโนมัติ (AFK → ห้องว่าง → ห้องอื่น)
+  const bounceChannel = pickBounceChannel(guild, voiceChannel.id);
+  if (!bounceChannel) {
     await interaction.editReply({
-      content: '⚠️ สมาชิกอยู่ในห้องปลายทางอยู่แล้ว — เลือกห้องปลายทางเป็นห้องอื่นครับ',
+      content: '⚠️ เซิร์ฟเวอร์นี้ต้องมีห้องเสียงอย่างน้อย 2 ห้อง (ตอนนี้มีห้องเดียว) จึงจะเขย่าได้ครับ',
     });
     return;
   }
 
   await interaction.editReply({ content: '🔔 กำลังเขย่า…' });
 
-  const result = await shakeMember(member, voiceChannel.id, targetChannel.id, delay);
+  const result = await shakeMember(member, voiceChannel.id, bounceChannel.id, delay);
 
   if (result.moved === 0) {
     await interaction.editReply({
@@ -126,18 +121,18 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     .setColor(0xfee75c)
     .setTitle('🔔 เขย่าเรียบร้อย!')
     .setDescription(
-      `เขย่า **${member.displayName}** ไปมาระหว่าง <#${voiceChannel.id}> ↔ <#${targetChannel.id}>`,
+      `เขย่า **${member.displayName}** ไปกลับ ${SHAKE_ROUNDS} ครั้ง ระหว่าง <#${voiceChannel.id}> ↔ <#${bounceChannel.id}> แล้วกลับมาอยู่ห้องเดิม`,
     )
     .addFields(
       { name: '👤 สมาชิก', value: member.displayName, inline: true },
-      { name: `🔁 จำนวนครั้ง (คงที่)`, value: `${SHAKE_MOVES} ครั้ง`, inline: true },
+      { name: '🔁 จำนวนครั้ง (คงที่)', value: `${SHAKE_ROUNDS} ครั้ง (ไป-กลับ)`, inline: true },
       { name: '⏱️ ดีเลย์', value: `${delay} ms`, inline: true },
-      { name: '📥 เขย่าเสร็จอยู่ที่', value: `<#${targetChannel.id}>`, inline: true },
+      { name: '🔊 ห้องที่ใช้สลับ', value: `<#${bounceChannel.id}>`, inline: true },
     )
     .setFooter({
       text:
         result.failed > 0
-          ? `มี ${result.failed} ครั้งที่ย้ายไม่สำเร็จ (อาจติดสิทธิ์/ยศ)`
+          ? `มี ${result.failed} ครั้งที่ย้ายไม่สำเร็จ (อาจติดสิทธิ์/ยศ) • ไม่ถูกบันทึกเป็น voice log`
           : 'สำเร็จทุกครั้ง • การเขย่าไม่ถูกบันทึกเป็น voice log',
     })
     .setTimestamp();
