@@ -4,6 +4,9 @@ node_modules/
 # build output
 dist/
 
+# binary ของ yt-dlp (ติดตั้งอัตโนมัติด้วย npm install — ไม่ต้อง commit)
+bin/
+
 # secrets — ห้าม commit ไฟล์นี้เด็ดขาด!
 .env
 

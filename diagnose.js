@@ -145,6 +145,26 @@ async function main() {
     }
   }
 
+  console.log('\n━━━ [6] ระบบเพลง (yt-dlp / Spotify) ━━━');
+  const pathMod = require('path');
+  const fsMod = require('fs');
+  const ytdlpPath = pathMod.join(__dirname, 'bin', process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
+  if (fsMod.existsSync(ytdlpPath)) {
+    let version = '(อ่านเวอร์ชันไม่ได้)';
+    try {
+      version = require('child_process').execFileSync(ytdlpPath, ['--version'], { timeout: 15000 }).toString().trim();
+    } catch {}
+    console.log('✅ yt-dlp:', ytdlpPath, '| เวอร์ชัน:', version);
+  } else {
+    console.log('⚠️ ไม่พบ bin/yt-dlp — รัน npm install อีกครั้ง (หรือบอทจะดาวน์โหลดให้อัตโนมัติเมื่อใช้ /play)');
+  }
+  console.log(
+    'Spotify:',
+    (process.env.SPOTIFY_CLIENT_ID || '').trim() && (process.env.SPOTIFY_CLIENT_SECRET || '').trim()
+      ? '✅ ตั้งค่าแล้ว (ลิงก์ Spotify ใช้ได้)'
+      : '➖ ยังไม่ตั้งค่า (ใช้ได้เฉพาะลิงก์ YouTube / คำค้นหา)',
+  );
+
   console.log('\n━━━ สรุปวิธีแก้ "คำสั่งไม่ขึ้น" ━━━');
   console.log('1) ยังไม่เคยรัน:            npm run deploy');
   console.log('2) ลงแล้วแต่ไม่เห็นในดิส:   กด Ctrl+R ที่ตัว Discord; ตรวจว่าลิงก์เชิญมี scope applications.commands');
