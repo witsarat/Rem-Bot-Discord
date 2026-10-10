@@ -54,7 +54,7 @@ PROJECT BOT/
 ├── .env.example                # ตัวอย่างไฟล์ .env
 ├── config.json                 # เก็บ ID ห้อง log แยกตามเซิร์ฟเวอร์ (บอทเขียนเอง)
 ├── diagnose.js                 # สคริปต์ตรวจสุขภาพบอท (npm run diagnose)
-├── website/                    # 🌐 เว็บไซต์แนะนำบอท (Next.js + Tailwind)
+├── website/                    # ➡️ แยกไป repo Rem-Bot-Website แล้ว (ไม่ถูก track ที่นี่)
 ├── package.json
 ├── tsconfig.json
 └── README.md
