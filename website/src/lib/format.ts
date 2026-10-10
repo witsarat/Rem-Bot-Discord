@@ -21,3 +21,14 @@ export function formatDateTimeTH(iso: string | null | undefined): string {
 export function formatNumberTH(value: number): string {
   return value.toLocaleString("th-TH");
 }
+
+/** ระยะเวลาแบบไทยสั้น ๆ: "2 ชม. 15 น." / "45 น." / "12 วิ" */
+export function formatDurationTH(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours > 0) return `${hours} ชม. ${minutes} น.`;
+  if (minutes > 0) return `${minutes} น.`;
+  return `${seconds} วิ`;
+}

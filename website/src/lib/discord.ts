@@ -48,6 +48,37 @@ export function isOAuthConfigured(): boolean {
   return Boolean(getClientId() && getClientSecret());
 }
 
+/** error ที่มีรหัส HTTP จาก Discord (ใช้แยกว่าเป็น 401 จริงหรือปัญหาชั่วคราว) */
+export class DiscordApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "DiscordApiError";
+    this.status = status;
+  }
+}
+
+/** เรียก Discord API พร้อม retry อัตโนมัติ 1 ครั้ง สำหรับ error ชั่วคราว (5xx / 429 / network) */
+async function fetchDiscord(url: string, init: RequestInit, attempts = 2): Promise<Response> {
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const res = await fetch(url, { ...init, cache: "no-store" });
+      if (res.status >= 500 || res.status === 429) {
+        lastError = new DiscordApiError(res.status, `Discord ตอบสถานะ ${res.status}`);
+        await new Promise((resolve) => setTimeout(resolve, 450));
+        continue;
+      }
+      return res;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 450));
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("เชื่อมต่อ Discord ไม่ได้");
+}
+
 // ───────────────────────── OAuth2: login แดชบอร์ด ─────────────────────────
 
 export function buildLoginAuthorizeUrl(origin: string, state: string): string {
@@ -82,7 +113,7 @@ export async function exchangeCode(redirectUri: string, code: string): Promise<s
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`แลก token ไม่สำเร็จ (${res.status}) ${text.slice(0, 200)}`);
+    throw new DiscordApiError(res.status, `แลก token ไม่สำเร็จ (${res.status}) ${text.slice(0, 200)}`);
   }
   const data = (await res.json()) as { access_token?: string };
   if (!data.access_token) throw new Error("ไม่ได้รับ access token จาก Discord");
@@ -90,20 +121,18 @@ export async function exchangeCode(redirectUri: string, code: string): Promise<s
 }
 
 export async function fetchMe(accessToken: string): Promise<DiscordUser> {
-  const res = await fetch(`${API_BASE}/users/@me`, {
+  const res = await fetchDiscord(`${API_BASE}/users/@me`, {
     headers: { authorization: `Bearer ${accessToken}` },
-    cache: "no-store",
   });
-  if (!res.ok) throw new Error(`ดึงข้อมูลผู้ใช้ไม่สำเร็จ (${res.status})`);
+  if (!res.ok) throw new DiscordApiError(res.status, `ดึงข้อมูลผู้ใช้ไม่สำเร็จ (${res.status})`);
   return (await res.json()) as DiscordUser;
 }
 
 export async function fetchUserGuilds(accessToken: string): Promise<DiscordGuild[]> {
-  const res = await fetch(`${API_BASE}/users/@me/guilds`, {
+  const res = await fetchDiscord(`${API_BASE}/users/@me/guilds`, {
     headers: { authorization: `Bearer ${accessToken}` },
-    cache: "no-store",
   });
-  if (!res.ok) throw new Error(`ดึงรายชื่อเซิร์ฟเวอร์ไม่สำเร็จ (${res.status})`);
+  if (!res.ok) throw new DiscordApiError(res.status, `ดึงรายชื่อเซิร์ฟเวอร์ไม่สำเร็จ (${res.status})`);
   return (await res.json()) as DiscordGuild[];
 }
 
@@ -112,11 +141,10 @@ export async function fetchUserGuilds(accessToken: string): Promise<DiscordGuild
 export async function fetchBotGuildIds(): Promise<Set<string>> {
   const token = getBotToken();
   if (!token) return new Set();
-  const res = await fetch(`${API_BASE}/users/@me/guilds`, {
+  const res = await fetchDiscord(`${API_BASE}/users/@me/guilds`, {
     headers: { authorization: `Bot ${token}` },
-    cache: "no-store",
   });
-  if (!res.ok) throw new Error(`ดึงรายชื่อเซิร์ฟเวอร์ของบอทไม่สำเร็จ (${res.status})`);
+  if (!res.ok) throw new DiscordApiError(res.status, `ดึงรายชื่อเซิร์ฟเวอร์ของบอทไม่สำเร็จ (${res.status})`);
   const guilds = (await res.json()) as Array<{ id: string }>;
   return new Set(guilds.map((guild) => guild.id));
 }
@@ -125,11 +153,10 @@ export async function fetchBotGuildIds(): Promise<Set<string>> {
 export async function fetchGuildTextChannels(guildId: string): Promise<DiscordChannel[]> {
   const token = getBotToken();
   if (!token) return [];
-  const res = await fetch(`${API_BASE}/guilds/${guildId}/channels`, {
+  const res = await fetchDiscord(`${API_BASE}/guilds/${guildId}/channels`, {
     headers: { authorization: `Bot ${token}` },
-    cache: "no-store",
   });
-  if (!res.ok) throw new Error(`ดึงรายชื่อห้องไม่สำเร็จ (${res.status})`);
+  if (!res.ok) throw new DiscordApiError(res.status, `ดึงรายชื่อห้องไม่สำเร็จ (${res.status})`);
   const channels = (await res.json()) as DiscordChannel[];
   return channels.filter((channel) => channel.type === 0 || channel.type === 5).sort((a, b) => a.position - b.position);
 }
@@ -203,7 +230,7 @@ export async function updateRoleConnection(
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`อัปเดตการเชื่อมต่อไม่สำเร็จ (${res.status}) ${text.slice(0, 200)}`);
+    throw new DiscordApiError(res.status, `อัปเดตการเชื่อมต่อไม่สำเร็จ (${res.status}) ${text.slice(0, 200)}`);
   }
 }
 

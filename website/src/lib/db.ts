@@ -172,3 +172,38 @@ export async function getGuildStats(guildId: string): Promise<GuildStats> {
     lastAt: row?.last_at ? row.last_at.toISOString() : null,
   };
 }
+
+// ─────────────────────────── อันดับ (leaderboard) ───────────────────────────
+
+export interface VoiceStatEventRow {
+  user_id: string;
+  username: string;
+  event: VoiceEvent;
+  created_at: Date;
+}
+
+/** เหตุการณ์ทั้งหมดของเซิร์ฟเวอร์ เรียงเก่า → ใหม่ (ใช้คำนวณอันดับเวลาห้องเสียง) */
+export async function getVoiceStatEvents(guildId: string, since: Date | null): Promise<VoiceStatEventRow[]> {
+  const db = getPool();
+  if (!db) return [];
+
+  if (since) {
+    const result = await db.query<VoiceStatEventRow>(
+      `SELECT user_id, username, event, created_at
+         FROM voice_logs
+        WHERE guild_id = $1 AND created_at >= $2
+        ORDER BY created_at ASC, id ASC`,
+      [guildId, since],
+    );
+    return result.rows;
+  }
+
+  const result = await db.query<VoiceStatEventRow>(
+    `SELECT user_id, username, event, created_at
+       FROM voice_logs
+      WHERE guild_id = $1
+      ORDER BY created_at ASC, id ASC`,
+    [guildId],
+  );
+  return result.rows;
+}

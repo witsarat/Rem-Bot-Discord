@@ -55,7 +55,9 @@ export default async function DashboardPage(props: PageProps<"/dashboard">) {
             <Note tone="rose">เข้าสู่ระบบไม่สำเร็จ — กรุณาลองใหม่อีกครั้ง</Note>
           </div>
         ) : null}
-        <LoginPrompt expired={result.reason === "token-expired"} />
+        <LoginPrompt
+          variant={result.reason === "token-expired" ? "expired" : result.reason === "discord-error" ? "temporary" : "login"}
+        />
       </div>
     );
   }

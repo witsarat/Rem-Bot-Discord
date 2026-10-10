@@ -6,8 +6,16 @@ import { Note } from "@/components/note";
 import { IconDiscord } from "@/components/icons";
 import { loadGuildAccess } from "@/lib/auth";
 import { fetchGuildTextChannels, guildIconUrl, type DiscordChannel } from "@/lib/discord";
-import { getGuildSettings, getGuildStats, getVoiceLogs, type VoiceEvent, type VoiceLogRow } from "@/lib/db";
-import { formatDateTimeTH, formatNumberTH } from "@/lib/format";
+import {
+  getGuildSettings,
+  getGuildStats,
+  getVoiceLogs,
+  getVoiceStatEvents,
+  type VoiceEvent,
+  type VoiceLogRow,
+} from "@/lib/db";
+import { formatDateTimeTH, formatDurationTH, formatNumberTH } from "@/lib/format";
+import { computeVoiceLeaderboard } from "@/lib/voiceStats";
 import { saveSettings } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -55,6 +63,11 @@ function parsePage(value: string | string[] | undefined): number {
 function parseEventFilter(value: string | string[] | undefined): VoiceEvent | null {
   const raw = one(value);
   return raw === "join" || raw === "leave" || raw === "move" ? raw : null;
+}
+
+function parsePeriod(value: string | string[] | undefined): "all" | "7" | "30" {
+  const raw = one(value);
+  return raw === "7" || raw === "30" ? raw : "all";
 }
 
 function channelOptions(channels: DiscordChannel[], selected: string | null): ReactNode[] {
@@ -118,7 +131,9 @@ export default async function GuildDetailPage(props: PageProps<"/dashboard/[guil
     return (
       <div className="min-h-screen bg-slate-50">
         <DashHeader session={null} />
-        <LoginPrompt expired={access.reason === "token-expired"} />
+        <LoginPrompt
+          variant={access.reason === "token-expired" ? "expired" : access.reason === "discord-error" ? "temporary" : "login"}
+        />
       </div>
     );
   }
@@ -129,14 +144,20 @@ export default async function GuildDetailPage(props: PageProps<"/dashboard/[guil
 
   const page = parsePage(searchParams.page);
   const eventFilter = parseEventFilter(searchParams.type);
+  const period = parsePeriod(searchParams.period);
   const saved = one(searchParams.saved) === "1";
   const errorCode = one(searchParams.error);
 
-  const [settings, stats, channels] = await Promise.all([
+  const statsSince = period === "all" ? null : new Date(Date.now() - (period === "7" ? 7 : 30) * 24 * 60 * 60 * 1000);
+
+  const [settings, stats, channels, statEvents] = await Promise.all([
     getGuildSettings(guildId),
     getGuildStats(guildId),
     botIn ? fetchGuildTextChannels(guildId).catch(() => [] as DiscordChannel[]) : Promise.resolve([] as DiscordChannel[]),
+    getVoiceStatEvents(guildId, statsSince),
   ]);
+
+  const leaderboard = computeVoiceLeaderboard(statEvents).slice(0, 10);
 
   let logs = await getVoiceLogs(guildId, { page, perPage: PER_PAGE, event: eventFilter });
   const totalPages = Math.max(1, Math.ceil(logs.total / PER_PAGE));
@@ -144,9 +165,13 @@ export default async function GuildDetailPage(props: PageProps<"/dashboard/[guil
     logs = await getVoiceLogs(guildId, { page: totalPages, perPage: PER_PAGE, event: eventFilter });
   }
 
-  const queryFor = (nextPage: number, type: VoiceEvent | null) => {
+  const queryFor = (overrides: { page?: number; type?: VoiceEvent | null; period?: "all" | "7" | "30" }) => {
+    const nextType = overrides.type !== undefined ? overrides.type : eventFilter;
+    const nextPeriod = overrides.period ?? period;
+    const nextPage = overrides.page ?? page;
     const sp = new URLSearchParams();
-    if (type) sp.set("type", type);
+    if (nextType) sp.set("type", nextType);
+    if (nextPeriod !== "all") sp.set("period", nextPeriod);
     if (nextPage > 1) sp.set("page", String(nextPage));
     const qs = sp.toString();
     return `/dashboard/${guildId}${qs ? `?${qs}` : ""}`;
@@ -255,6 +280,82 @@ export default async function GuildDetailPage(props: PageProps<"/dashboard/[guil
           <StatTile label="บันทึกล่าสุด" value={formatDateTimeTH(stats.lastAt)} />
         </div>
 
+        {/* อันดับเวลาห้องเสียง */}
+        <section className="mt-8">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-slate-900">อันดับเวลาอยู่ห้องเสียง</h2>
+              <p className="mt-0.5 text-xs text-slate-400">
+                นับรวมทุกครั้งที่เข้าห้อง (คำนวณจากประวัติที่บันทึกไว้)
+              </p>
+            </div>
+            <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 text-sm">
+              {(
+                [
+                  { key: "all", label: "ทั้งหมด" },
+                  { key: "7", label: "7 วัน" },
+                  { key: "30", label: "30 วัน" },
+                ] as const
+              ).map((option) => (
+                <Link
+                  key={option.key}
+                  href={queryFor({ page: 1, period: option.key })}
+                  className={`rounded-md px-3 py-1 transition-colors ${
+                    option.key === period ? "bg-blue-50 font-medium text-blue-700" : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  {option.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          <div className="card mt-4 overflow-hidden">
+            {leaderboard.length === 0 ? (
+              <p className="px-4 py-10 text-center text-sm text-slate-400">
+                ยังไม่มีข้อมูลเพียงพอสำหรับจัดอันดับ — เมื่อมีคนเข้า–ออกห้องเสียง ระบบจะคำนวณให้อัตโนมัติ
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[480px] text-left text-sm">
+                  <thead className="border-b border-slate-200 bg-slate-50 text-xs text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3 font-medium">อันดับ</th>
+                      <th className="px-4 py-3 font-medium">สมาชิก</th>
+                      <th className="px-4 py-3 font-medium">เวลารวม</th>
+                      <th className="px-4 py-3 font-medium">เข้าห้อง</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {leaderboard.map((entry, index) => (
+                      <tr key={entry.userId} className="transition-colors hover:bg-slate-50/70">
+                        <td className="px-4 py-3">
+                          <span
+                            className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${
+                              index === 0
+                                ? "bg-amber-100 text-amber-700"
+                                : index === 1
+                                  ? "bg-slate-200 text-slate-600"
+                                  : index === 2
+                                    ? "bg-orange-100 text-orange-700"
+                                    : "text-slate-400"
+                            }`}
+                          >
+                            {index + 1}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 font-medium text-slate-800">{entry.username}</td>
+                        <td className="px-4 py-3 tabular-nums text-slate-700">{formatDurationTH(entry.totalMs)}</td>
+                        <td className="px-4 py-3 text-slate-500">{formatNumberTH(entry.joins)} ครั้ง</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </section>
+
         {/* ประวัติ */}
         <section className="mt-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -265,7 +366,7 @@ export default async function GuildDetailPage(props: PageProps<"/dashboard/[guil
                 return (
                   <Link
                     key={filter.label}
-                    href={queryFor(1, filter.key)}
+                    href={queryFor({ page: 1, type: filter.key })}
                     className={`rounded-md px-3 py-1 transition-colors ${
                       active ? "bg-blue-50 font-medium text-blue-700" : "text-slate-500 hover:text-slate-800"
                     }`}
@@ -322,7 +423,7 @@ export default async function GuildDetailPage(props: PageProps<"/dashboard/[guil
             {totalPages > 1 ? (
               <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm">
                 {page > 1 ? (
-                  <Link href={queryFor(page - 1, eventFilter)} className="text-blue-600 hover:text-blue-700">
+                  <Link href={queryFor({ page: page - 1 })} className="text-blue-600 hover:text-blue-700">
                     ← ก่อนหน้า
                   </Link>
                 ) : (
@@ -332,7 +433,7 @@ export default async function GuildDetailPage(props: PageProps<"/dashboard/[guil
                   หน้า {Math.min(page, totalPages)} / {totalPages} · {formatNumberTH(logs.total)} รายการ
                 </span>
                 {page < totalPages ? (
-                  <Link href={queryFor(page + 1, eventFilter)} className="text-blue-600 hover:text-blue-700">
+                  <Link href={queryFor({ page: page + 1 })} className="text-blue-600 hover:text-blue-700">
                     ถัดไป →
                   </Link>
                 ) : (

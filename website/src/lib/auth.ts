@@ -4,13 +4,13 @@
  * - ผู้ใช้จัดการได้เฉพาะเซิร์ฟเวอร์ที่ตัวเองเป็นเจ้าของ/มีสิทธิ์ผู้ดูแล
  */
 import { getSession, type SessionUser } from "./session";
-import { fetchBotGuildIds, fetchUserGuilds, isAdminGuild, type DiscordGuild } from "./discord";
+import { DiscordApiError, fetchBotGuildIds, fetchUserGuilds, isAdminGuild, type DiscordGuild } from "./discord";
 
 export type { SessionUser };
 
 export type AccessResult<T> =
   | { ok: true; data: T }
-  | { ok: false; reason: "no-session" | "token-expired" | "no-access" };
+  | { ok: false; reason: "no-session" | "token-expired" | "no-access" | "discord-error" };
 
 export interface AdminGuildsData {
   session: SessionUser;
@@ -32,8 +32,12 @@ export async function loadAdminGuilds(): Promise<AccessResult<AdminGuildsData>> 
       .filter(isAdminGuild)
       .sort((a, b) => Number(b.owner) - Number(a.owner) || a.name.localeCompare(b.name, "th"));
     return { ok: true, data: { session, adminGuilds, botGuildIds } };
-  } catch {
-    return { ok: false, reason: "token-expired" };
+  } catch (error) {
+    console.error("[auth] โหลดข้อมูลจาก Discord ไม่สำเร็จ:", error);
+    if (error instanceof DiscordApiError && error.status === 401) {
+      return { ok: false, reason: "token-expired" };
+    }
+    return { ok: false, reason: "discord-error" };
   }
 }
 
@@ -55,7 +59,11 @@ export async function loadGuildAccess(guildId: string): Promise<AccessResult<Gui
 
     const botGuildIds = await fetchBotGuildIds().catch(() => new Set<string>());
     return { ok: true, data: { session, guild, botGuildIds } };
-  } catch {
-    return { ok: false, reason: "token-expired" };
+  } catch (error) {
+    console.error("[auth] โหลดข้อมูลจาก Discord ไม่สำเร็จ:", error);
+    if (error instanceof DiscordApiError && error.status === 401) {
+      return { ok: false, reason: "token-expired" };
+    }
+    return { ok: false, reason: "discord-error" };
   }
 }
