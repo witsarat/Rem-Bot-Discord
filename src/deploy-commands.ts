@@ -3,10 +3,10 @@
  * สคริปต์สำหรับลงทะเบียน Slash Commands กับ Discord
  * วิธีใช้:  npm run deploy
  *
- * ลงทะเบียน 2 ระดับ:
- *   1) Global  → ทุกเซิร์ฟเวอร์ที่บอทอยู่ใช้ได้ (เซิร์ฟเวอร์ใหม่อาจรอถึง ~1 ชม.)
- *   2) รายเซิร์ฟเวอร์ → คำสั่งขึ้นทันที — ลงให้ "ทุกดิสที่บอทอยู่" อัตโนมัติ
- *      (+ ลงเพิ่มให้ Server ID ใน GUILD_ID ด้วย ถ้ามี — ไม่ต้องใส่ก็ได้)
+ * หลักการทำงาน:
+ *   1) ล้างคำสั่งระดับ Global ที่เคยลงไว้ทิ้ง — เพราะถ้ามีคำสั่งชื่อเดียวกัน
+ *      ทั้งแบบ Global และแบบรายเซิร์ฟเวอร์ Discord จะโชว์คำสั่งซ้ำ 2 อัน (ปัญหาที่เจอจริง)
+ *   2) ลงคำสั่งแบบ "รายเซิร์ฟเวอร์" ให้ทุกดิสที่บอทอยู่ → คำสั่งขึ้นทันที ไม่ต้องรอ
  *
  * เพิ่มดิสใหม่ในอนาคต: แค่เชิญบอทเข้า แล้วรัน npm run deploy อีกครั้ง — จบ
  */
@@ -23,13 +23,12 @@ async function main(): Promise<void> {
 
   const rest = new REST().setToken(env.token);
 
-  // ── 1) Global: ใช้ได้ทุกเซิร์ฟเวอร์ ───────────────────────────────
-  console.log(`⏳ กำลังลงทะเบียน ${body.length} คำสั่งแบบ Global (ทุกเซิร์ฟเวอร์)...`);
-  await rest.put(Routes.applicationCommands(env.clientId), { body });
-  console.log('✅ Global สำเร็จ — ทุกเซิร์ฟเวอร์ที่บอทอยู่จะใช้คำสั่งได้ (เซิร์ฟเวอร์ใหม่อาจรอถึง 1 ชม.)');
+  // ── 1) ล้างคำสั่งระดับ Global (กันคำสั่งซ้ำซ้อนกับแบบรายเซิร์ฟเวอร์) ──
+  console.log('⏳ ล้างคำสั่งระดับ Global ที่เคยลงไว้ (ถ้ามี)...');
+  await rest.put(Routes.applicationCommands(env.clientId), { body: [] });
+  console.log('✅ ล้าง Global แล้ว — ใช้คำสั่งแบบรายเซิร์ฟเวอร์อย่างเดียว (ขึ้นทันทีทุกดิส)');
 
-  // ── 2) รายเซิร์ฟเวอร์: ให้คำสั่งขึ้นทันที ─────────────────────────
-  //    รวม "ทุกดิสที่บอทอยู่" + "Server ID ที่ระบุใน GUILD_ID" (ถ้ามี)
+  // ── 2) ลงคำสั่งแบบรายเซิร์ฟเวอร์ให้ทุกดิสที่บอทอยู่ (+ GUILD_ID เสริม ถ้ามี) ──
   const targets = new Map<string, string>(); // id → ชื่อดิส ('' = ยังไม่ทราบชื่อ)
 
   for (const id of env.guildIds) targets.set(id, '');
@@ -45,7 +44,7 @@ async function main(): Promise<void> {
   }
 
   if (targets.size === 0) {
-    console.log('ℹ️ ยังไม่พบเซิร์ฟเวอร์ให้ลงแบบรายเซิร์ฟเวอร์ — ใช้ Global อย่างเดียวก็ได้ (อาจรอถึง 1 ชม.)');
+    console.log('⚠️ ไม่พบเซิร์ฟเวอร์ให้ลงคำสั่ง — เชิญบอทเข้าเซิร์ฟเวอร์ก่อน แล้วรัน npm run deploy อีกครั้ง');
     return;
   }
 
@@ -56,7 +55,7 @@ async function main(): Promise<void> {
       console.log(`✅ ลงทันทีสำหรับ: ${label}`);
     } catch (error) {
       console.warn(`⚠️ ลงที่ ${label} ไม่สำเร็จ: ${error instanceof Error ? error.message : error}`);
-      console.warn('   (ข้ามไป — คำสั่งแบบ Global ยังใช้งานได้ปกติ)');
+      console.warn('   (ข้ามไป — ลองรัน npm run deploy อีกครั้ง)');
     }
   }
 
