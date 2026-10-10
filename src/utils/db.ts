@@ -72,6 +72,13 @@ export async function initDb(): Promise<void> {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )
     `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS voice_snapshot (
+        guild_id TEXT PRIMARY KEY,
+        data JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
 
     // อัปเดตโครงสร้างสำหรับฟีเจอร์ใหม่ (ปลอดภัย — รันซ้ำได้เสมอ)
     // weekly_channel_id    : ห้องที่รับรายงานประจำสัปดาห์
@@ -252,5 +259,42 @@ export async function syncBotGuilds(guildIds: string[]): Promise<void> {
     );
   } catch (error) {
     console.error('[db] ซิงก์รายชื่อเซิร์ฟเวอร์ของบอทไม่สำเร็จ:', error);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Snapshot ห้องเสียงปัจจุบัน (ตาราง voice_snapshot)
+// — บอทซิงก์ "รายชื่อห้องเสียง + คนที่อยู่ในแต่ละห้อง" ให้เว็บแสดงแบบสด
+// ─────────────────────────────────────────────────────────────
+
+/** บันทึก snapshot ห้องเสียงของเซิร์ฟเวอร์ (JSONB — แทนที่ทั้งก้อน) */
+export async function setVoiceSnapshotDb(guildId: string, data: unknown): Promise<boolean> {
+  const client = getPool();
+  if (!client || !ready) return false;
+
+  try {
+    await client.query(
+      `INSERT INTO voice_snapshot (guild_id, data, updated_at)
+       VALUES ($1, $2::jsonb, now())
+       ON CONFLICT (guild_id)
+       DO UPDATE SET data = EXCLUDED.data, updated_at = now()`,
+      [guildId, JSON.stringify(data)],
+    );
+    return true;
+  } catch (error) {
+    console.error('[db] บันทึก snapshot ห้องเสียงไม่สำเร็จ:', error);
+    return false;
+  }
+}
+
+/** ลบ snapshot ของเซิร์ฟเวอร์ (ตอนบอทถูกนำออกจากดิส) */
+export async function deleteVoiceSnapshotDb(guildId: string): Promise<void> {
+  const client = getPool();
+  if (!client || !ready) return;
+
+  try {
+    await client.query('DELETE FROM voice_snapshot WHERE guild_id = $1', [guildId]);
+  } catch (error) {
+    console.error('[db] ลบ snapshot ห้องเสียงไม่สำเร็จ:', error);
   }
 }

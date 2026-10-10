@@ -9,7 +9,8 @@ import { registerVoiceStateUpdate } from './events/voiceStateUpdate';
 import { startWeeklyScheduler } from './utils/weeklyReport';
 import { loadBotEnv } from './utils/env';
 import { startHealthServer } from './utils/healthServer';
-import { initDb, syncBotGuilds } from './utils/db';
+import { initDb, syncBotGuilds, deleteVoiceSnapshotDb } from './utils/db';
+import { startVoiceSnapshotSync, scheduleGuildVoiceSync } from './utils/voicePresence';
 
 // ────────────────────────────────────────────────
 // 1) ตรวจสอบค่าใน .env (Token / Client ID)
@@ -46,8 +47,26 @@ registerVoiceStateUpdate(client);
 client.on(Events.GuildCreate, () => {
   void syncBotGuilds([...client.guilds.cache.keys()]);
 });
-client.on(Events.GuildDelete, () => {
+client.on(Events.GuildDelete, (guild) => {
   void syncBotGuilds([...client.guilds.cache.keys()]);
+  void deleteVoiceSnapshotDb(guild.id);
+});
+
+// 3.02) ซิงก์ "ห้องเสียงปัจจุบัน" (ห้อง + คนที่อยู่ในห้อง) — อัปเดตสดตามอีเวนต์
+client.on(Events.VoiceStateUpdate, (_oldState, newState) => {
+  scheduleGuildVoiceSync(newState.guild);
+});
+client.on(Events.ChannelCreate, (channel) => {
+  const guild = 'guild' in channel ? channel.guild : null;
+  if (guild) scheduleGuildVoiceSync(guild);
+});
+client.on(Events.ChannelDelete, (channel) => {
+  const guild = 'guild' in channel ? channel.guild : null;
+  if (guild) scheduleGuildVoiceSync(guild);
+});
+client.on(Events.ChannelUpdate, (_oldChannel, newChannel) => {
+  const guild = 'guild' in newChannel ? newChannel.guild : null;
+  if (guild) scheduleGuildVoiceSync(guild);
 });
 
 // 3.05) ระบบรายงานประจำสัปดาห์ — ส่งอัตโนมัติทุกวันจันทร์ 09:00 น. (เวลาไทย)
@@ -89,6 +108,9 @@ client.once(Events.ClientReady, (readyClient) => {
 
   // ซิงก์รายชื่อเซิร์ฟเวอร์ที่บอทอยู่ลง DB (ให้เว็บรู้โดยไม่ต้องใช้ token)
   void syncBotGuilds([...readyClient.guilds.cache.keys()]);
+
+  // เริ่มระบบซิงก์ "ห้องเสียงปัจจุบัน" (ซิงก์ทันที + ทวนทุก 60 วินาที)
+  startVoiceSnapshotSync(readyClient);
 
   // ตั้งค่าสถานะการเล่นให้ดูสวยงาม (ไม่บังคับ)
   readyClient.user.setPresence({
