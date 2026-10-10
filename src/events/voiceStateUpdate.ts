@@ -16,6 +16,7 @@ import {
 import type { Client } from 'discord.js';
 import { getLogChannelId } from '../utils/config';
 import { insertVoiceLog } from '../utils/db';
+import { isBeingShaken } from '../utils/shake';
 import { createVoiceJoinEmbed, createVoiceLeaveEmbed, createVoiceMoveEmbed } from '../utils/embeds';
 
 /** ลงทะเบียนอีเวนต์ voiceStateUpdate เข้ากับ client */
@@ -35,6 +36,10 @@ async function handleVoiceStateUpdate(oldState: VoiceState, newState: VoiceState
 
   // 2) ไม่บันทึกการเคลื่อนไหวของบอท
   if (member.user.bot) return;
+
+  // 2.5) ถ้าสมาชิกกำลังถูกเขย่า (/shake) → ไม่บันทึก
+  //      (การย้ายไปมาเป็นฝีมือของบอท ไม่ใช่กิจกรรมจริง — กัน log รก)
+  if (isBeingShaken(member.id)) return;
 
   const oldChannel = oldState.channel;
   const newChannel = newState.channel;
