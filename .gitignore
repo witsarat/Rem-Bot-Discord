@@ -13,3 +13,6 @@ config.json
 # logs & misc
 *.log
 .DS_Store
+
+# เว็บไซต์แยกไป repo ของตัวเองแล้ว (witsarat/Rem-Bot-Website) — ไม่ track ที่นี่
+website/
