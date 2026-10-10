@@ -63,7 +63,7 @@ function buildWeeklyReportEmbed(
   const medals = ['🥇', '🥈', '🥉'];
   const lines = board.rows.slice(0, 5).map((row, index) => {
     const place = medals[index] ?? `**${index + 1}.**`;
-    return `${place} **${row.username}** — ⏱️ ${formatVoiceDuration(row.totalMs)} • ${row.sessions} ครั้ง`;
+    return `${place} **${row.username}** — ⏱️ รวม ${formatVoiceDuration(row.totalMs)} • เข้าห้อง ${row.sessions} ครั้ง`;
   });
 
   const summary = `👥 สมาชิกที่ใช้งาน: **${board.participants} คน** • ⏱️ เวลารวม: **${formatVoiceDuration(board.totalMs)}**`;

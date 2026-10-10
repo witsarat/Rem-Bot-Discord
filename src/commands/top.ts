@@ -135,7 +135,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const lines = topRows.map((row, index) => {
     const place = medals[index] ?? `**${index + 1}.**`;
     const name = displayNames.get(row.userId) ?? row.username;
-    return `${place} **${name}** — ⏱️ ${formatVoiceDuration(row.totalMs)} • ${row.sessions} ครั้ง`;
+    return `${place} **${name}** — ⏱️ รวม ${formatVoiceDuration(row.totalMs)} • เข้าห้อง ${row.sessions} ครั้ง`;
   });
 
   const liveCount = openNow.size;
@@ -157,7 +157,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     .setColor(RANK_COLOR)
     .setTitle('🏆 จัดอันดับ — อยู่ในห้องเสียงนานที่สุด')
     .setDescription(description)
-    .setFooter({ text: '🗄️ ดึงจากฐานข้อมูล • ผู้ที่ยังอยู่ในห้องเสียงจะนับเวลาถึงปัจจุบัน' })
+    .setFooter({ text: '🗄️ ดึงจากฐานข้อมูล • นับรวมทุกครั้งที่เข้าห้อง • ผู้ที่ยังอยู่ในห้องเสียงจะนับถึงปัจจุบัน' })
     .setTimestamp();
 
   await interaction.editReply({ embeds: [embed] });
