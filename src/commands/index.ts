@@ -12,12 +12,8 @@ import {
   SlashCommandSubcommandsOnlyBuilder,
 } from 'discord.js';
 import * as help from './help';
-import * as play from './play';
-import * as queue from './queue';
 import * as setup from './setup';
 import * as shake from './shake';
-import * as skip from './skip';
-import * as stop from './stop';
 import * as top from './top';
 import * as weekly from './weekly';
 
@@ -34,6 +30,6 @@ export interface BotCommand {
 
 export const commands = new Collection<string, BotCommand>();
 
-for (const command of [setup, help, top, weekly, shake, play, skip, stop, queue]) {
+for (const command of [setup, help, top, weekly, shake]) {
   commands.set(command.data.name, command);
 }
