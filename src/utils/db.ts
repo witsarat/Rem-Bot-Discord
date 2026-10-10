@@ -72,9 +72,36 @@ export async function initDb(): Promise<void> {
         activity_type TEXT NOT NULL,
         activity_text TEXT NOT NULL,
         status TEXT NOT NULL,
+        details TEXT,
+        state TEXT,
+        show_elapsed BOOLEAN NOT NULL DEFAULT false,
+        large_image TEXT,
+        large_text TEXT,
+        small_image TEXT,
+        small_text TEXT,
+        button1_label TEXT,
+        button1_url TEXT,
+        button2_label TEXT,
+        button2_url TEXT,
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )
     `);
+    // อัปเกรดตารางเดิมให้รองรับ Rich Presence เต็มรูปแบบ (รันซ้ำได้เสมอ)
+    for (const column of [
+      'details TEXT',
+      'state TEXT',
+      'show_elapsed BOOLEAN NOT NULL DEFAULT false',
+      'large_image TEXT',
+      'large_text TEXT',
+      'small_image TEXT',
+      'small_text TEXT',
+      'button1_label TEXT',
+      'button1_url TEXT',
+      'button2_label TEXT',
+      'button2_url TEXT',
+    ]) {
+      await client.query(`ALTER TABLE bot_settings ADD COLUMN IF NOT EXISTS ${column}`);
+    }
 
     // อัปเดตโครงสร้างสำหรับฟีเจอร์ใหม่ (ปลอดภัย — รันซ้ำได้เสมอ)
     // weekly_channel_id    : ห้องที่รับรายงานประจำสัปดาห์
@@ -235,11 +262,42 @@ export async function markWeeklySent(guildId: string): Promise<void> {
 // ค่า Rich Presence ของบอท (ตาราง bot_settings — ตั้งค่าผ่านหน้าเว็บ เฉพาะเจ้าของบอท)
 // ─────────────────────────────────────────────────────────────
 
-/** ค่าสถานะที่แสดงของบอท (ชื่อชนิดกิจกรรม/ข้อความ/สถานะ) */
+/** ค่าสถานะที่แสดงของบอท (Rich Presence เต็มรูปแบบ — สไตล์ส่วนขยาย Discord ของ VS Code) */
 export interface BotPresenceSettings {
   activityType: string;
   activityText: string;
   status: string;
+  /** บรรทัดย่อยที่ 1 (เช่น "Editing index.ts") */
+  details: string;
+  /** บรรทัดย่อยที่ 2 (เช่น "Workspace: my-project") */
+  state: string;
+  /** แสดงเวลาทำงาน — นับจากเวลาที่บอทออนไลน์ */
+  showElapsed: boolean;
+  largeImage: string;
+  largeText: string;
+  smallImage: string;
+  smallText: string;
+  button1Label: string;
+  button1Url: string;
+  button2Label: string;
+  button2Url: string;
+}
+
+interface BotPresenceRow {
+  activity_type: string;
+  activity_text: string;
+  status: string;
+  details: string | null;
+  state: string | null;
+  show_elapsed: boolean | null;
+  large_image: string | null;
+  large_text: string | null;
+  small_image: string | null;
+  small_text: string | null;
+  button1_label: string | null;
+  button1_url: string | null;
+  button2_label: string | null;
+  button2_url: string | null;
 }
 
 /** อ่านค่า Rich Presence จาก DB — null = ยังไม่มีแถว (ใช้ค่าเริ่มต้นแทน) */
@@ -248,14 +306,32 @@ export async function getBotPresenceDb(): Promise<BotPresenceSettings | null> {
   if (!client || !ready) return null;
 
   try {
-    const result = await client.query<{ activity_type: string; activity_text: string; status: string }>(
-      'SELECT activity_type, activity_text, status FROM bot_settings ORDER BY id LIMIT 1',
+    const result = await client.query<BotPresenceRow>(
+      `SELECT activity_type, activity_text, status,
+              details, state, show_elapsed,
+              large_image, large_text, small_image, small_text,
+              button1_label, button1_url, button2_label, button2_url
+         FROM bot_settings
+        ORDER BY id
+        LIMIT 1`,
     );
     if (!result.rows.length) return null;
+    const row = result.rows[0];
     return {
-      activityType: result.rows[0].activity_type,
-      activityText: result.rows[0].activity_text,
-      status: result.rows[0].status,
+      activityType: row.activity_type,
+      activityText: row.activity_text,
+      status: row.status,
+      details: row.details ?? '',
+      state: row.state ?? '',
+      showElapsed: row.show_elapsed ?? false,
+      largeImage: row.large_image ?? '',
+      largeText: row.large_text ?? '',
+      smallImage: row.small_image ?? '',
+      smallText: row.small_text ?? '',
+      button1Label: row.button1_label ?? '',
+      button1Url: row.button1_url ?? '',
+      button2Label: row.button2_label ?? '',
+      button2Url: row.button2_url ?? '',
     };
   } catch (error) {
     console.error('[db] อ่านค่า Rich Presence ไม่สำเร็จ:', error);
@@ -270,14 +346,44 @@ export async function setBotPresenceDb(settings: BotPresenceSettings): Promise<b
 
   try {
     await client.query(
-      `INSERT INTO bot_settings (id, activity_type, activity_text, status, updated_at)
-       VALUES (1, $1, $2, $3, now())
+      `INSERT INTO bot_settings
+         (id, activity_type, activity_text, status,
+          details, state, show_elapsed,
+          large_image, large_text, small_image, small_text,
+          button1_label, button1_url, button2_label, button2_url, updated_at)
+       VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, now())
        ON CONFLICT (id)
        DO UPDATE SET activity_type = EXCLUDED.activity_type,
                      activity_text = EXCLUDED.activity_text,
                      status = EXCLUDED.status,
+                     details = EXCLUDED.details,
+                     state = EXCLUDED.state,
+                     show_elapsed = EXCLUDED.show_elapsed,
+                     large_image = EXCLUDED.large_image,
+                     large_text = EXCLUDED.large_text,
+                     small_image = EXCLUDED.small_image,
+                     small_text = EXCLUDED.small_text,
+                     button1_label = EXCLUDED.button1_label,
+                     button1_url = EXCLUDED.button1_url,
+                     button2_label = EXCLUDED.button2_label,
+                     button2_url = EXCLUDED.button2_url,
                      updated_at = now()`,
-      [settings.activityType, settings.activityText, settings.status],
+      [
+        settings.activityType,
+        settings.activityText,
+        settings.status,
+        settings.details || null,
+        settings.state || null,
+        settings.showElapsed,
+        settings.largeImage || null,
+        settings.largeText || null,
+        settings.smallImage || null,
+        settings.smallText || null,
+        settings.button1Label || null,
+        settings.button1Url || null,
+        settings.button2Label || null,
+        settings.button2Url || null,
+      ],
     );
     return true;
   } catch (error) {
