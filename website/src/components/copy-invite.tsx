@@ -16,8 +16,8 @@ export function CopyInvite({ url, className }: { url: string; className?: string
   }
 
   return (
-    <button type="button" onClick={copy} className={`btn-ghost ${className ?? ""}`}>
-      {copied ? "✅ คัดลอกลิงก์แล้ว!" : "🔗 คัดลอกลิงก์เชิญ"}
+    <button type="button" onClick={copy} className={`btn-secondary ${className ?? ""}`}>
+      {copied ? "คัดลอกแล้ว" : "คัดลอกลิงก์เชิญ"}
     </button>
   );
 }

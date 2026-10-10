@@ -164,20 +164,46 @@ npm run dev
 
 ---
 
-## 🌐 เว็บไซต์แนะนำบอท (`website/`)
+## 🌐 เว็บไซต์ + แดชบอร์ดจัดการบอท (`website/`)
 
-เว็บโชว์ฟีเจอร์บอทหน้าเดียว — Next.js 16 + Tailwind CSS 4 ธีมสี Rem
+เว็บประชาสัมพันธ์ + **แดชบอร์ดจัดการบอท** (login ด้วย Discord) — Next.js 16 + Tailwind CSS 4 ธีมขาว–ฟ้า
 
 🌍 **เปิดใช้งานจริงแล้ว: https://rem-bot.vercel.app (Vercel)**
+
+| หน้า | ทำอะไร |
+|---|---|
+| `/` | หน้าแรก — ฟีเจอร์ คำสั่ง วิธีใช้งาน |
+| `/dashboard` | เข้าสู่ระบบด้วย Discord → เลือกเซิร์ฟเวอร์ (เห็นเฉพาะที่ตัวเองเป็นผู้ดูแล) |
+| `/dashboard/<guildId>` | ตั้งค่าห้อง log / ห้องรายงาน + ดูประวัติ voice log + สถิติ |
+| `/terms` · `/privacy` | ข้อกำหนดการให้บริการ · นโยบายความเป็นส่วนตัว |
+| `/api/linked-roles/verify` | URL ยืนยัน **Linked Roles** (ใช้กรอกใน Developer Portal) |
+
+### ตั้งค่าครั้งแรก (ทำครั้งเดียว)
+
+1. **Env ของเว็บ** — คัดลอก `website/.env.example` → `website/.env.local` แล้วเติมค่า
+   (บน Vercel: ใส่ค่าเดียวกันใน Project → Settings → Environment Variables):
+   `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_TOKEN`, `DATABASE_URL`, `SESSION_SECRET` (สุ่มด้วย `openssl rand -hex 32`)
+2. **Developer Portal → แอปบอท → OAuth2 → Redirects** เพิ่ม 2 URL:
+   - `https://rem-bot.vercel.app/api/auth/callback`
+   - `https://rem-bot.vercel.app/api/linked-roles/verify`
+   (ถ้ารันในเครื่อง ใช้ `http://localhost:3000` แทน)
+3. **Developer Portal → General Information** กรอก:
+   - Linked Roles Verification URL = `https://rem-bot.vercel.app/api/linked-roles/verify`
+   - Terms of Service URL = `https://rem-bot.vercel.app/terms`
+   - Privacy Policy URL = `https://rem-bot.vercel.app/privacy`
+4. **ลงทะเบียนฟิลด์ยศ Linked Roles** (ครั้งเดียว): `cd website && node --env-file=.env.local scripts/register-role-metadata.mts`
+
+### รัน / deploy เว็บ
 
 ```bash
 cd website
 npm install
-npm run dev   # เปิดที่ http://localhost:3000
+npm run dev                      # เปิดที่ http://localhost:3000
+npx vercel deploy --prod --yes   # deploy ขึ้น production
 ```
 
-- ปุ่ม "เชิญ Rem เข้าเซิร์ฟเวอร์" ใช้ลิงก์เชิญจริงของบอท — แก้ได้ที่ตัวแปร `INVITE_URL` ใน `website/src/app/page.tsx`
-- Deploy ซ้ำเมื่อแก้เว็บ: `cd website && npx vercel deploy --prod --yes`
+- ปุ่ม "เพิ่มบอท" ใช้ลิงก์เชิญจริง — แก้ได้ที่ตัวแปร `INVITE_URL` ใน `website/src/app/page.tsx`
+- แดชบอร์ดตรวจสิทธิ์จาก Discord จริงทุกครั้ง (Administrator / Manage Server) — ข้อมูลแสดงเฉพาะเซิร์ฟเวอร์ที่ผู้ใช้ดูแล
 
 ---
 
