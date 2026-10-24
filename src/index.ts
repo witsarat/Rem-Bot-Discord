@@ -11,6 +11,7 @@ import { loadBotEnv } from './utils/env';
 import { startHealthServer } from './utils/healthServer';
 import { initDb, syncBotGuilds, deleteVoiceSnapshotDb } from './utils/db';
 import { startVoiceSnapshotSync, scheduleGuildVoiceSync } from './utils/voicePresence';
+import { syncGuildCommands, syncCommandsForGuild } from './utils/commandSync';
 
 // ────────────────────────────────────────────────
 // 1) ตรวจสอบค่าใน .env (Token / Client ID)
@@ -44,8 +45,16 @@ const client = new Client({
 registerVoiceStateUpdate(client);
 
 // 3.01) ซิงก์รายชื่อเซิร์ฟเวอร์กับ DB เมื่อบอทถูกเพิ่ม/ถูกนำออกจากดิส
-client.on(Events.GuildCreate, () => {
+//       (ตัวแปรนี้กันไม่ให้ลงคำสั่งซ้ำตอนบูต — ตอนบูต ClientReady จัดการให้แล้ว)
+let initialCommandSyncDone = false;
+
+client.on(Events.GuildCreate, (guild) => {
   void syncBotGuilds([...client.guilds.cache.keys()]);
+  if (!initialCommandSyncDone) return; // ตอนบูตปล่อยให้ ClientReady ซิงก์ทั้งหมดครั้งเดียว
+  // ดิสใหม่ → ลงคำสั่งให้ทันที (ไม่ต้องรอรีสตาร์ท/รัน npm run deploy)
+  void syncCommandsForGuild(client, guild.id, guild.name).catch((error: unknown) => {
+    console.warn('[commands] ลงคำสั่งให้ดิสใหม่ไม่สำเร็จ:', error);
+  });
 });
 client.on(Events.GuildDelete, (guild) => {
   void syncBotGuilds([...client.guilds.cache.keys()]);
@@ -103,8 +112,17 @@ client.once(Events.ClientReady, (readyClient) => {
   console.log('──────────────────────────────────────────');
   console.log(`✅ บอทออนไลน์แล้ว: ${readyClient.user.username}`);
   console.log(`📌 อยู่ในเซิร์ฟเวอร์: ${readyClient.guilds.cache.size} แห่ง`);
-  console.log('💡 ถ้าคำสั่ง /setup /help ยังไม่ขึ้น ให้รัน: npm run deploy');
+  console.log('🧰 กำลังตรวจ/ลงทะเบียน Slash Commands ให้ทุกเซิร์ฟเวอร์...');
   console.log('──────────────────────────────────────────');
+
+  // ลงทะเบียนคำสั่งอัตโนมัติ (แทนการรัน npm run deploy ด้วยมือ — จำเป็นบน Render)
+  void syncGuildCommands(readyClient)
+    .catch((error: unknown) => {
+      console.warn('[commands] ซิงก์คำสั่งไม่สำเร็จ:', error);
+    })
+    .finally(() => {
+      initialCommandSyncDone = true;
+    });
 
   // ซิงก์รายชื่อเซิร์ฟเวอร์ที่บอทอยู่ลง DB (ให้เว็บรู้โดยไม่ต้องใช้ token)
   void syncBotGuilds([...readyClient.guilds.cache.keys()]);
