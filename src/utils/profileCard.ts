@@ -33,7 +33,7 @@ const C = {
   bronze: '#d98b5f',
   text: '#fff4ec',
   muted: '#d0b3a3',
-  dim: '#96796b',
+  dim: '#ab8e7e',
   line: 'rgba(255, 236, 224, 0.10)',
   chipBg: 'rgba(255, 140, 66, 0.12)',
   chipBorder: 'rgba(255, 140, 66, 0.38)',
@@ -318,7 +318,7 @@ function drawStatCard(
   ctx.fillText(fitted.text, x + 26, y + 104);
 
   setFont(ctx, 17);
-  ctx.fillStyle = C.dim;
+  ctx.fillStyle = C.muted;
   ctx.fillText(clipText(ctx, hint, width - 52, 17), x + 26, y + 136);
 }
 
@@ -412,7 +412,7 @@ export async function renderProfileCard(input: ProfileCardInput): Promise<Buffer
   const rankText = input.rank ? `#${input.rank.place} จาก ${input.rank.total} คน` : 'ยังไม่ถูกจัดอันดับ';
   ctx.textAlign = 'left';
   setFont(ctx, 16);
-  ctx.fillStyle = C.dim;
+  ctx.fillStyle = C.muted;
   ctx.fillText('🏅 อันดับในเซิร์ฟเวอร์', 92, 456);
   setFont(ctx, 24, true);
   ctx.fillStyle = input.rank && input.rank.place <= 3 ? C.gold : C.text;
@@ -507,7 +507,7 @@ export async function renderWeeklyCard(input: WeeklyCardInput): Promise<Buffer> 
   ctx.fillText('🏆 อันดับผู้ใช้งานห้องเสียง', 64, 292);
 
   setFont(ctx, 14);
-  ctx.fillStyle = C.dim;
+  ctx.fillStyle = C.muted;
   ctx.textAlign = 'right';
   ctx.fillText('เวลารวม', W - 240, 292);
   ctx.fillText('เข้าห้อง', W - 64, 292);
@@ -569,7 +569,7 @@ export async function renderWeeklyCard(input: WeeklyCardInput): Promise<Buffer> 
   ctx.fillText(`${clipText(ctx, input.guildName, 420, 14)} · ข้อมูลจากฐานข้อมูล`, 64, footerY);
 
   ctx.textAlign = 'right';
-  ctx.fillStyle = 'rgba(255, 236, 224, 0.40)';
+  ctx.fillStyle = 'rgba(255, 236, 224, 0.62)';
   ctx.fillText(`ส่งอัตโนมัติทุกวันจันทร์ 09:00 น. • ${TH_DATETIME.format(new Date())}`, W - 64, footerY);
 
   return canvas.encode('png');
