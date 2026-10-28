@@ -14,5 +14,8 @@ config.json
 *.log
 .DS_Store
 
+# ผลลัพธ์ทดสอบ/ข้อมูลรันไทม์ในเครื่อง (รูปการ์ดตัวอย่าง, credential จำลอง ฯลฯ)
+.data/
+
 # เว็บไซต์แยกไป repo ของตัวเองแล้ว (witsarat/Rem-Bot-Website) — ไม่ track ที่นี่
 website/

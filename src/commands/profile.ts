@@ -10,6 +10,7 @@
  *   Premium — เพิ่มเวลารวมตลอดกาล, อันดับในเซิร์ฟเวอร์, ห้องยอดนิยม
  */
 import {
+  AttachmentBuilder,
   ChatInputCommandInteraction,
   EmbedBuilder,
   GuildMember,
@@ -24,6 +25,7 @@ import {
   PREMIUM_SITE_URL,
 } from '../utils/premium';
 import { DAY_MS, formatVoiceDuration, getVoiceLeaderboard, getUserVoiceStats } from '../utils/voiceStats';
+import { renderProfileCard } from '../utils/profileCard';
 
 const COLOR_PREMIUM = 0x5865f2;
 const COLOR_FREE = 0x99a1af;
@@ -111,6 +113,66 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         .first(3)
         .map((role) => `${role}`)
     : [];
+
+  // ── เรนเดอร์การ์ดเป็นรูป PNG (ถ้าล้มเหลวจะส่ง embed ข้อความแทน) ──
+  let cardFile: AttachmentBuilder | null = null;
+  try {
+    const png = await renderProfileCard({
+      displayName,
+      username: targetUser.username,
+      avatarUrl: targetUser.displayAvatarURL({ extension: 'png', size: 256 }),
+      guildName: guild.name,
+      joinedAt: member?.joinedAt ?? null,
+      premium,
+      rank,
+      stats: {
+        last7Ms: stats.last7.totalMs,
+        last7Sessions: stats.last7.sessions,
+        last30Ms: stats.last30.totalMs,
+        last30Sessions: stats.last30.sessions,
+        allMs: stats.all.totalMs,
+        allSessions: stats.all.sessions,
+        joins: stats.joins,
+        topChannel: stats.topChannel?.name ?? null,
+      },
+    });
+    cardFile = new AttachmentBuilder(png, { name: 'profile.png' });
+  } catch (error) {
+    console.error('[profile] เรนเดอร์การ์ดไม่สำเร็จ — จะส่งเป็น embed แทน:', error);
+  }
+
+  if (cardFile) {
+    const cardEmbed = new EmbedBuilder()
+      .setColor(premium ? COLOR_PREMIUM : COLOR_FREE)
+      .setAuthor({ name: displayName, iconURL: targetUser.displayAvatarURL({ size: 128 }) })
+      .setTitle('🎧 การ์ดสมาชิก')
+      .setDescription(
+        [
+          member
+            ? `อยู่ในเซิร์ฟเวอร์นี้ตั้งแต่ **${formatPremiumDate(member.joinedAt)}**`
+            : 'ไม่ได้อยู่ในเซิร์ฟเวอร์นี้แล้ว',
+          premium
+            ? '⭐ เซิร์ฟเวอร์นี้ใช้แพ็กเกจ **Premium** — ปลดล็อกสถิติตลอดกาล'
+            : '🎁 แพ็กเกจฟรี — สถิติ 7/30 วัน (ตลอดกาลเป็นฟีเจอร์ Premium)',
+          hasData ? null : 'ยังไม่มีข้อมูลห้องเสียงของสมาชิกคนนี้',
+        ]
+          .filter((line): line is string => line !== null)
+          .join('\n'),
+      )
+      .setImage('attachment://profile.png')
+      .setFooter({
+        text: premium
+          ? `⭐ Premium • ${PREMIUM_SITE_URL}`
+          : `🔒 สถิติตลอดกาล/อันดับ ปลดล็อกด้วย Premium ${PREMIUM_PRICE_THB} บาท/เดือน • /premium`,
+      })
+      .setTimestamp();
+
+    if (roles.length) cardEmbed.addFields({ name: '🎭 บทบาท', value: roles.join(' • ') });
+    if (premium && rank && rank.place === 1) cardEmbed.setColor(RANK_COLOR);
+
+    await interaction.editReply({ embeds: [cardEmbed], files: [cardFile] });
+    return;
+  }
 
   const embed = new EmbedBuilder()
     .setColor(premium ? COLOR_PREMIUM : COLOR_FREE)

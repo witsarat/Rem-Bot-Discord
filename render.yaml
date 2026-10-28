@@ -22,6 +22,6 @@ services:
       - key: GUILD_ID
         value: "1067052518238072842"
       - key: OWNER_ID
-        sync: false # ← กรอกตอน Apply (Discord user id ของเจ้าของบอท — ใช้เปิด/ยกเลิก Premium)
+        value: "677454970269728768" # เจ้าของบอท (Discord user id) — ใช้ /premium grant, /premium revoke
       - key: NODE_OPTIONS
         value: --max-old-space-size=384
