@@ -106,6 +106,18 @@ export async function initDb(): Promise<void> {
       'CREATE INDEX IF NOT EXISTS idx_guild_subscriptions_period_end ON guild_subscriptions (current_period_end)',
     );
 
+    // ── เลย์เอาต์การ์ดที่แก้ไขได้จากแดชบอร์ด (Card Studio) ─────────
+    // 1 แถว = 1 เซิร์ฟเวอร์ + 1 ชนิดการ์ด (profile / weekly)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS card_layouts (
+        guild_id TEXT NOT NULL,
+        variant TEXT NOT NULL DEFAULT 'profile',
+        layout JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (guild_id, variant)
+      )
+    `);
+
     // อัปเดตโครงสร้างสำหรับฟีเจอร์ใหม่ (ปลอดภัย — รันซ้ำได้เสมอ)
     // weekly_channel_id    : ห้องที่รับรายงานประจำสัปดาห์
     // last_weekly_sent_at  : เวลาส่งรายงานล่าสุด (กันส่งซ้ำข้ามการรีสตาร์ท)
