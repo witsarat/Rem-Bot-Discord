@@ -17,6 +17,7 @@ import {
   SlashCommandBuilder,
 } from 'discord.js';
 import { isDbReady } from '../utils/db';
+import { getOwnerIds } from '../utils/env';
 import {
   countActiveSubscriptions,
   formatPremiumDate,
@@ -163,7 +164,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
     const embed = new EmbedBuilder()
       .setColor(COLOR_PREMIUM)
-      .setTitle('⭐ เปรียบเทียบแพ็กเกจ — Rem')
+      .setTitle('⭐ เปรียบเทียบแพ็กเกจ — Ruru')
       .setDescription(
         `แพ็กเกจ **Premium ${PREMIUM_PRICE_THB} บาท/เดือน ต่อเซิร์ฟเวอร์**\n` +
           'ยกเลิกได้ทุกเมื่อ — ข้อมูลที่บันทึกไว้ยังอยู่ครบแม้กลับไปใช้แพ็กเกจฟรี',
@@ -181,8 +182,16 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   // ── ตั้งแต่ここลงไป: เฉพาะเจ้าของบอท ─────────────────────────
   if (!isBotOwner(interaction.user.id)) {
+    const envOwners = getOwnerIds().length;
     await interaction.reply({
-      content: '⛔ คำสั่งนี้ใช้ได้เฉพาะเจ้าของบอทเท่านั้น',
+      content: [
+        '⛔ คำสั่งนี้ใช้ได้เฉพาะเจ้าของบอท',
+        `ไอดีของคุณ: \`${interaction.user.id}\``,
+        envOwners > 0
+          ? `OWNER_ID ที่ตั้งไว้มี ${envOwners} รายการ แต่ไม่ตรงกับไอดีนี้`
+          : 'OWNER_ID ยังไม่ได้ตั้งค่า และบอทยังไม่รู้จักเจ้าของแอป Discord (จะรู้หลังบูตใหม่)',
+        `วิธีแก้: เพิ่ม \`OWNER_ID=${interaction.user.id}\` ใน Environment Variables ของ Render แล้ว redeploy`,
+      ].join('\n'),
       flags: MessageFlags.Ephemeral,
     });
     return;

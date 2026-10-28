@@ -6,11 +6,13 @@
 import 'dotenv/config';
 import { getPool, getWeeklyTargets, initDb, isDbReady, markWeeklySent, setWeeklyChannelDb } from './src/utils/db';
 import {
+  botOwnerCount,
   grantPremium,
   isBotOwner,
   isPremium,
   getPremiumState,
   PREMIUM_PRICE_THB,
+  registerBotOwners,
   revokePremium,
 } from './src/utils/premium';
 import { getUserVoiceStats } from './src/utils/voiceStats';
@@ -102,11 +104,18 @@ async function main(): Promise<void> {
   check('เซิร์ฟเวอร์ฟรี → target.premium = false', target?.premium === false, JSON.stringify(target));
   check('revoke ซ้ำยังคืน true (มีแถวอยู่)', (await revokePremium(TEST_GUILD)) === true);
 
-  // ── 8) เจ้าของบอท (OWNER_ID) ───────────────────────────────
+  // ── 8) เจ้าของบอท (OWNER_ID + เจ้าของแอปจาก Discord) ──────────
   const previousOwner = process.env.OWNER_ID;
   process.env.OWNER_ID = '111111111111111111,222222222222222222';
   check('OWNER_ID ตรง → เป็นเจ้าของบอท', isBotOwner('222222222222222222'));
   check('OWNER_ID ไม่ตรง → ไม่ใช่เจ้าของบอท', isBotOwner('333333333333333333') === false);
+
+  // เจ้าของแอป Discord (ลงทะเบียนตอน ClientReady) ต้องได้สิทธิ์แม้ไม่ได้ตั้ง OWNER_ID
+  process.env.OWNER_ID = '';
+  registerBotOwners(['677454970269728768', null, 'bad-id']);
+  check('เจ้าของแอปที่ลงทะเบียนตอนบูต → grant ได้แม้ไม่มี OWNER_ID', isBotOwner('677454970269728768'));
+  check('ไอดีแปลก ๆ ถูกกรองทิ้ง', isBotOwner('bad-id') === false);
+  check('นับเจ้าของได้ 1 คน', botOwnerCount() === 1, `ได้ ${botOwnerCount()}`);
   process.env.OWNER_ID = previousOwner;
 
   // ── 9) สถิติการ์ด /profile: 7 วัน / 30 วัน / ทั้งหมด ──────────

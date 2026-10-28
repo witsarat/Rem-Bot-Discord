@@ -20,7 +20,7 @@ export function startHealthServer(): void {
     res.end(
       JSON.stringify({
         status: 'ok',
-        bot: 'Rem — Voice Log Bot',
+        bot: 'Ruru — Voice Log Bot',
         db: isDbReady() ? 'connected' : isDbConfigured() ? 'error' : 'off',
         uptime: Math.floor(process.uptime()),
         time: new Date().toISOString(),

@@ -12,7 +12,7 @@ export const data = new SlashCommandBuilder()
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const embed = new EmbedBuilder()
     .setColor(0x5865f2)
-    .setTitle('📖 คู่มือการใช้งาน Voice Log Bot')
+    .setTitle('📖 คู่มือการใช้งาน Ruru')
     .setDescription(
       'บอทจะคอยบันทึกการ **เข้า-ออก-ย้ายห้องเสียง** ของสมาชิกในเซิร์ฟเวอร์\n' +
         'แล้วส่งเป็นข้อความ Embed ไปยังห้อง `voice-logs` โดยอัตโนมัติ',
@@ -33,8 +33,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       {
         name: '⭐ แพ็กเกจ',
         value: [
-          '**ฟรี** — บันทึก log ไม่จำกัด, `/top` 7/30 วัน, `/profile` สถิติ 7/30 วัน, ประวัติในแดชบอร์ด 30 วัน',
-          '**Premium 29 บาท/เดือน (ต่อเซิร์ฟเวอร์)** — `/top` ทั้งหมด, `/profile` สถิติตลอดกาล + อันดับ + ห้องยอดนิยม, รายงานอัตโนมัติทุกจันทร์ 09:00, ประวัติเต็ม + ส่งออก CSV',
+          '**ฟรี** — บันทึก log ไม่จำกัด, `/top` 7/30 วัน, `/profile` การ์ดสมาชิกเต็มรูปแบบ, ประวัติในแดชบอร์ด 30 วัน',
+          '**Premium 29 บาท/เดือน (ต่อเซิร์ฟเวอร์)** — `/top` ทั้งหมด, รายงานอัตโนมัติทุกจันทร์ 09:00, ประวัติเต็ม + ส่งออก CSV',
           'ดูตารางเต็มด้วย `/premium features` • เปิดใช้โดยเจ้าของบอท (`/premium grant`)',
         ].join('\n'),
       },
@@ -56,7 +56,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         ].join('\n'),
       },
     )
-    .setFooter({ text: 'Voice Log Bot • พัฒนาด้วย discord.js v14' })
+    .setFooter({ text: 'Ruru • พัฒนาด้วย discord.js v14' })
     .setTimestamp();
 
   // ephemeral = เห็นเฉพาะคนที่พิมพ์คำสั่ง

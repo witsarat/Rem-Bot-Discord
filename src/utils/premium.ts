@@ -43,7 +43,7 @@ export const PREMIUM_FEATURES: PremiumFeatureRow[] = [
   { name: '/setup • /help • /shake', free: '✓', premium: '✓' },
   { name: '/top 7 วัน / 30 วัน', free: '✓', premium: '✓' },
   { name: '/top ทั้งหมด (ตลอดกาล)', free: '—', premium: '✓' },
-  { name: '/profile การ์ดสมาชิก', free: 'เวลา 7 / 30 วัน', premium: 'ตลอดกาล + อันดับ + ห้องยอดนิยม' },
+  { name: '/profile การ์ดสมาชิก', free: '✓', premium: '✓' },
   { name: 'รายงานประจำสัปดาห์', free: 'ส่งทดสอบเองได้', premium: 'ส่งอัตโนมัติทุกจันทร์ 09:00' },
   { name: `ประวัติในแดชบอร์ด`, free: `${FREE_HISTORY_DAYS} วันล่าสุด`, premium: 'ทั้งหมด' },
   { name: 'ส่งออก CSV', free: '—', premium: '✓' },
@@ -154,9 +154,23 @@ export async function revokePremium(guildId: string): Promise<boolean> {
   return ok;
 }
 
-/** ผู้ใช้คนนี้เป็นเจ้าของบอทหรือไม่ (OWNER_ID ใน .env) */
+/** ผู้ใช้คนนี้เป็นเจ้าของบอทหรือไม่ — OWNER_ID ใน .env หรือเจ้าของแอป Discord (ที่ลงทะเบียนตอนบูต) */
+const runtimeOwners = new Set<string>();
+
+/** ลงทะเบียนเจ้าของที่รู้จาก Discord (application owner / สมาชิกทีม) — เรียกตอน ClientReady */
+export function registerBotOwners(userIds: Array<string | null | undefined>): void {
+  for (const id of userIds) {
+    if (id && /^\d{17,20}$/.test(id)) runtimeOwners.add(id);
+  }
+}
+
 export function isBotOwner(userId: string): boolean {
-  return getOwnerIds().includes(userId);
+  return getOwnerIds().includes(userId) || runtimeOwners.has(userId);
+}
+
+/** จำนวนเจ้าของที่ระบบรู้จัก (OWNER_ID + จาก Discord) — ใช้ log ตอนบูต */
+export function botOwnerCount(): number {
+  return new Set([...getOwnerIds(), ...runtimeOwners]).size;
 }
 
 /** จำนวนเซิร์ฟเวอร์ที่เป็น Premium อยู่ (ใช้สรุปตอนบูต/log) */

@@ -3,7 +3,7 @@
  * ขั้นตอน: ตรวจ .env → สร้าง Client → ลงทะเบียนอีเวนต์/คำสั่ง → ล็อกอิน
  */
 import 'dotenv/config';
-import { ActivityType, Client, Events, GatewayIntentBits, MessageFlags } from 'discord.js';
+import { ActivityType, Client, Events, GatewayIntentBits, MessageFlags, Team } from 'discord.js';
 import { commands } from './commands';
 import { registerVoiceStateUpdate } from './events/voiceStateUpdate';
 import { startWeeklyScheduler } from './utils/weeklyReport';
@@ -12,6 +12,7 @@ import { startHealthServer } from './utils/healthServer';
 import { initDb, syncBotGuilds, deleteVoiceSnapshotDb } from './utils/db';
 import { startVoiceSnapshotSync, scheduleGuildVoiceSync } from './utils/voicePresence';
 import { syncGuildCommands, syncCommandsForGuild } from './utils/commandSync';
+import { botOwnerCount, registerBotOwners } from './utils/premium';
 
 // ────────────────────────────────────────────────
 // 1) ตรวจสอบค่าใน .env (Token / Client ID)
@@ -108,10 +109,24 @@ client.on(Events.InteractionCreate, async (interaction) => {
 });
 
 // 3.2) แจ้งเตือนเมื่อบอทออนไลน์สำเร็จ
-client.once(Events.ClientReady, (readyClient) => {
+client.once(Events.ClientReady, async (readyClient) => {
   console.log('──────────────────────────────────────────');
   console.log(`✅ บอทออนไลน์แล้ว: ${readyClient.user.username}`);
   console.log(`📌 อยู่ในเซิร์ฟเวอร์: ${readyClient.guilds.cache.size} แห่ง`);
+
+  // เจ้าของแอป Discord (user หรือ team) ได้สิทธิ์ /premium grant อัตโนมัติ — ไม่ต้องพึ่ง OWNER_ID
+  try {
+    const application = await readyClient.application?.fetch();
+    const appOwner = application?.owner;
+    if (appOwner) {
+      if (appOwner instanceof Team) registerBotOwners([...appOwner.members.keys()]);
+      else registerBotOwners([appOwner.id]);
+    }
+  } catch (error) {
+    console.warn('[premium] ดึงข้อมูลเจ้าของแอปไม่สำเร็จ (ใช้ OWNER_ID อย่างเดียว):', error);
+  }
+  console.log(`👑 เจ้าของบอทที่ใช้ /premium ได้: ${botOwnerCount()} คน`);
+
   console.log('🧰 กำลังตรวจ/ลงทะเบียน Slash Commands ให้ทุกเซิร์ฟเวอร์...');
   console.log('──────────────────────────────────────────');
 
