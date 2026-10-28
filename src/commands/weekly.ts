@@ -142,11 +142,18 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return;
   }
 
+  const premiumNow = (await getPremiumState(guild.id, { skipCache: true })).premium;
+
   const embed = new EmbedBuilder()
     .setColor(0x5865f2)
     .setTitle('✅ ส่งรายงานทดสอบแล้ว')
     .setDescription(
-      `รายงานถูกส่งเข้า <#${channelId}> เรียบร้อย\n(กำหนดการจริงจะยังส่งทุกวันจันทร์ 09:00 น. ตามปกติ)`,
+      premiumNow
+        ? `ส่ง **การ์ดรูปภาพ** เข้า <#${channelId}> เรียบร้อย\n(กำหนดการจริงจะส่งทุกวันจันทร์ 09:00 น. ตามปกติ)`
+        : [
+            `ส่ง **Embed สรุป** เข้า <#${channelId}> เรียบร้อย — แพ็กเกจฟรีได้รายงานแบบ embed`,
+            `อัปเกรด Premium ${PREMIUM_PRICE_THB} บาท/เดือน เพื่อรับเป็นการ์ดรูปภาพและส่งอัตโนมัติทุกวันจันทร์ 09:00 น.`,
+          ].join('\n'),
     )
     .setTimestamp();
 

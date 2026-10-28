@@ -6,8 +6,10 @@
  * - กันส่งซ้ำด้วยค่า last_weekly_sent_at ในฐานข้อมูล (รอดจากการรีสตาร์ทของ Render)
  * - ถ้าบอทออฟไลน์ช่วงเวลาส่ง ระบบจะส่งย้อนหลังให้เมื่อออนไลน์อีกครั้ง (รอบล่าสุดรอบเดียว)
  */
-import { ChannelType, Client, EmbedBuilder } from 'discord.js';
+import { AttachmentBuilder, ChannelType, Client, EmbedBuilder } from 'discord.js';
 import { getWeeklyTargets, isDbReady, markWeeklySent } from './db';
+import { isPremium } from './premium';
+import { renderWeeklyCard } from './profileCard';
 import { DAY_MS, formatVoiceDuration, getVoiceLeaderboard, VoiceLeaderboard } from './voiceStats';
 
 const WEEK_MS = 7 * DAY_MS;
@@ -87,7 +89,11 @@ function buildWeeklyReportEmbed(
     .setTimestamp();
 }
 
-/** ส่งรายงานประจำสัปดาห์ของเซิร์ฟเวอร์หนึ่งไปยังห้องที่ตั้งไว้ — คืน true ถ้าส่งสำเร็จ */
+/**
+ * ส่งรายงานประจำสัปดาห์ของเซิร์ฟเวอร์หนึ่งไปยังห้องที่ตั้งไว้ — คืน true ถ้าส่งสำเร็จ
+ * - Premium → การ์ดรูปภาพ (โทนส้ม ฟอนต์ Anuphan + อีโมจิ)
+ * - ฟรี     → Embed สรุปแบบเดิม
+ */
 export async function sendWeeklyReport(
   client: Client,
   guildId: string,
@@ -109,6 +115,33 @@ export async function sendWeeklyReport(
   const toMs = Date.now();
   const board = await getVoiceLeaderboard(guildId, WEEK_MS, openNow);
   if (!board) return false;
+
+  const premium = await isPremium(guildId);
+
+  if (premium) {
+    try {
+      const png = await renderWeeklyCard({
+        guildName: guild.name,
+        from: new Date(toMs - WEEK_MS),
+        to: new Date(toMs),
+        participants: board.participants,
+        totalMs: board.totalMs,
+        topChannel: board.topChannel,
+        rows: board.rows.slice(0, 5).map((row) => ({
+          username: row.username,
+          totalMs: row.totalMs,
+          sessions: row.sessions,
+        })),
+      });
+
+      await channel.send({
+        files: [new AttachmentBuilder(png, { name: 'ruru-weekly.png' })],
+      });
+      return true;
+    } catch (error) {
+      console.error('[weekly] เรนเดอร์การ์ดไม่สำเร็จ — ส่งเป็น embed แทน:', error);
+    }
+  }
 
   const embed = buildWeeklyReportEmbed(guild.name, board, toMs - WEEK_MS, toMs);
   await channel.send({ embeds: [embed] });
