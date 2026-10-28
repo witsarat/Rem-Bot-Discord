@@ -16,8 +16,8 @@ import { botOwnerCount } from './premium';
 import { decodeLayout } from './cardLayout';
 import { renderProfileCard, renderWeeklyCard } from './profileCard';
 
-/** จำกัดการเรียกพรีวิว: 30 ครั้ง/นาที ต่อ IP */
-const RATE_LIMIT = 30;
+/** จำกัดการเรียกพรีวิว: 120 ครั้ง/นาที ต่อ IP (ลากปรับการ์ดต่อเนื่องได้) */
+const RATE_LIMIT = 120;
 const RATE_WINDOW_MS = 60_000;
 const hits = new Map<string, number[]>();
 
