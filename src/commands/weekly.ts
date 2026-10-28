@@ -17,6 +17,7 @@ import {
 } from 'discord.js';
 import { getWeeklyChannelId, setWeeklyChannelId } from '../utils/config';
 import { isDbReady } from '../utils/db';
+import { getPremiumState, PREMIUM_PRICE_THB } from '../utils/premium';
 import { formatThaiDateTime, nextWeeklyReportAt, sendWeeklyReport } from '../utils/weeklyReport';
 
 export const data = new SlashCommandBuilder()
@@ -78,6 +79,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   if (subcommand === 'set') {
     const channel = interaction.options.getChannel('ห้อง', true);
     await setWeeklyChannelId(guild.id, channel.id);
+    const premium = (await getPremiumState(guild.id, { skipCache: true })).premium;
 
     const embed = new EmbedBuilder()
       .setColor(0x57f287)
@@ -86,12 +88,23 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       .addFields(
         {
           name: '📅 รายงานถัดไป',
-          value: `**${formatThaiDateTime(nextWeeklyReportAt(Date.now()))}** น. (เวลาไทย)`,
+          value: premium
+            ? `**${formatThaiDateTime(nextWeeklyReportAt(Date.now()))}** น. (เวลาไทย)`
+            : 'จะเริ่มส่งอัตโนมัติหลังเปิดใช้ Premium',
         },
         { name: '🆔 Channel ID', value: `\`${channel.id}\``, inline: true },
       )
       .setFooter({ text: 'ส่งอัตโนมัติทุกวันจันทร์ 09:00 น. • เก็บค่าไว้ในฐานข้อมูลออนไลน์' })
       .setTimestamp();
+
+    if (!premium) {
+      embed.addFields({
+        name: '🔒 รายงานอัตโนมัติเป็นฟีเจอร์ Premium',
+        value:
+          `บันทึกห้องไว้แล้ว แต่เซิร์ฟเวอร์ฟรีจะยังไม่ได้รับรายงานอัตโนมัติ\n` +
+          `ใช้ \`/weekly now\` ส่งทดสอบได้ทุกเมื่อ • เปิดใช้ Premium ${PREMIUM_PRICE_THB} บาท/เดือน ด้วย \`/premium\``,
+      });
+    }
 
     await interaction.editReply({ embeds: [embed] });
     return;

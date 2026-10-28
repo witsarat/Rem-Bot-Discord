@@ -124,6 +124,10 @@ async function checkAndSend(client: Client): Promise<void> {
 
   for (const target of targets) {
     try {
+      // รายงานอัตโนมัติเป็นฟีเจอร์ Premium — เซิร์ฟเวอร์ฟรีตั้งห้องไว้ได้ แต่จะไม่ส่งเอง
+      // (ยังไม่ส่งทดสอบได้ด้วย /weekly now) เมื่ออัปเกรดแล้วรอบถัดไปจะส่งทันที
+      if (!target.premium) continue;
+
       // เพิ่งตั้งค่าใหม่ (ยังไม่เคยส่ง) → ตั้งจุดเริ่มต้น แล้วเริ่มส่งรอบถัดไป
       if (!target.lastSent) {
         await markWeeklySent(target.guildId);

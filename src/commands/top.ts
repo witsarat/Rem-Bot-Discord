@@ -12,6 +12,7 @@ import {
   SlashCommandBuilder,
 } from 'discord.js';
 import { isDbReady } from '../utils/db';
+import { getPremiumState, PREMIUM_PRICE_THB, PREMIUM_SITE_URL } from '../utils/premium';
 import { DAY_MS, formatVoiceDuration, getVoiceLeaderboard } from '../utils/voiceStats';
 
 const TOP_COUNT = 10;
@@ -30,7 +31,7 @@ export const data = new SlashCommandBuilder()
   .addStringOption((option) =>
     option
       .setName('ช่วงเวลา')
-      .setDescription('ช่วงเวลาของสถิติ (ค่าเริ่มต้น: ทั้งหมด)')
+      .setDescription('ช่วงเวลาของสถิติ (ค่าเริ่มต้น: ทั้งหมด • แพ็กเกจฟรี: 7 วันล่าสุด)')
       .addChoices(
         { name: 'ทั้งหมด', value: 'all' },
         { name: '7 วันล่าสุด', value: '7d' },
@@ -61,7 +62,34 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return;
   }
 
-  const period = PERIODS[interaction.options.getString('ช่วงเวลา') ?? 'all'] ?? PERIODS.all;
+  // ── เช็คสิทธิ์ช่วงเวลา: "ทั้งหมด" เป็นฟีเจอร์ Premium ──────────
+  const requestedPeriod = interaction.options.getString('ช่วงเวลา');
+  const premium = (await getPremiumState(guild.id)).premium;
+
+  if (requestedPeriod === 'all' && !premium) {
+    const embed = new EmbedBuilder()
+      .setColor(0x5865f2)
+      .setTitle('🔒 อันดับ "ทั้งหมด" เป็นฟีเจอร์ Premium')
+      .setDescription(
+        [
+          `แพ็กเกจฟรีดูอันดับย้อนหลังได้ **7 วัน** และ **30 วัน** เท่านั้น`,
+          `อัปเกรดเป็น **Premium ${PREMIUM_PRICE_THB} บาท/เดือน** (ต่อเซิร์ฟเวอร์) เพื่อดูอันดับตลอดกาล`,
+          '',
+          'ลองใหม่ได้เลยตอนนี้:',
+          '• `/top ช่วงเวลา:7 วันล่าสุด`',
+          '• `/top ช่วงเวลา:30 วันล่าสุด`',
+          '',
+          `รายละเอียดแพ็กเกจ: ${PREMIUM_SITE_URL}`,
+        ].join('\n'),
+      );
+
+    await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
+    return;
+  }
+
+  // ฟรี: ค่าเริ่มต้นเป็น 7 วัน (ไม่ต้องเดาเจตนา) — Premium: ค่าเริ่มต้นทั้งหมดเหมือนเดิม
+  const periodKey = requestedPeriod ?? (premium ? 'all' : '7d');
+  const period = PERIODS[periodKey] ?? PERIODS.all;
   const targetUser = interaction.options.getUser('สมาชิก');
 
   // สมาชิกที่ยังอยู่ในห้องเสียงตอนนี้ → เซสชันที่ยังไม่ปิดจะนับเวลาถึงปัจจุบัน
@@ -92,7 +120,9 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     const embed = new EmbedBuilder()
       .setColor(RANK_COLOR)
       .setTitle(`📊 สถิติห้องเสียงของ ${displayName}`)
-      .setFooter({ text: `ช่วง: ${period.label} • 🗄️ จากฐานข้อมูล` })
+      .setFooter({
+        text: `ช่วง: ${period.label} • 🗄️ จากฐานข้อมูล${premium ? '' : ' • 🔒 ทั้งหมด = Premium'}`,
+      })
       .setTimestamp();
 
     if (index === -1) {
@@ -157,7 +187,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     .setColor(RANK_COLOR)
     .setTitle('🏆 จัดอันดับ — อยู่ในห้องเสียงนานที่สุด')
     .setDescription(description)
-    .setFooter({ text: '🗄️ ดึงจากฐานข้อมูล • นับรวมทุกครั้งที่เข้าห้อง • ผู้ที่ยังอยู่ในห้องเสียงจะนับถึงปัจจุบัน' })
+    .setFooter({
+      text:
+        '🗄️ ดึงจากฐานข้อมูล • นับรวมทุกครั้งที่เข้าห้อง • ผู้ที่ยังอยู่ในห้องเสียงจะนับถึงปัจจุบัน' +
+        (premium ? '' : ' • 🔒 อันดับทั้งหมด = Premium'),
+    })
     .setTimestamp();
 
   await interaction.editReply({ embeds: [embed] });

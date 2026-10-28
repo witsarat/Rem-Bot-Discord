@@ -136,6 +136,113 @@ export async function getVoiceLeaderboard(
   return { rows, totalMs, participants: rows.length, topChannel };
 }
 
+/** สถิติของช่วงเวลาหนึ่ง (ใช้ในการ์ด /profile) */
+export interface PeriodVoiceStats {
+  /** เวลารวมในห้องเสียง (มิลลิวินาที) */
+  totalMs: number;
+  /** จำนวนเซสชันที่เข้าห้อง */
+  sessions: number;
+}
+
+/** สถิติห้องเสียงรายบุคคล แยกตามช่วงเวลา (ใช้กับการ์ด /profile) */
+export interface UserVoiceStats {
+  /** ทั้งหมด (ตลอดกาล) */
+  all: PeriodVoiceStats;
+  /** 30 วันล่าสุด */
+  last30: PeriodVoiceStats;
+  /** 7 วันล่าสุด */
+  last7: PeriodVoiceStats;
+  /** จำนวนครั้งที่เข้าห้องทั้งหมด */
+  joins: number;
+  /** ห้องที่เข้าบ่อยที่สุด (ตลอดกาล) */
+  topChannel: { name: string; count: number } | null;
+}
+
+/**
+ * คำนวณสถิติห้องเสียงของสมาชิก 1 คน (7 วัน / 30 วัน / ทั้งหมด) จากตาราง voice_logs
+ * - ใช้หลักการจับคู่ join → leave เหมือน getVoiceLeaderboard
+ * - เซสชันที่ยังไม่ปิดจะนับถึงปัจจุบัน ถ้าส่งชุด openNow มา
+ * @returns สถิติ หรือ null ถ้าฐานข้อมูลยังไม่พร้อม/อ่านไม่สำเร็จ
+ */
+export async function getUserVoiceStats(
+  guildId: string,
+  userId: string,
+  openNow?: Set<string>,
+): Promise<UserVoiceStats | null> {
+  const pool = getPool();
+  if (!pool || !isDbReady()) return null;
+
+  try {
+    const result = await pool.query<{
+      event: string;
+      created_at: Date;
+      channel_name: string | null;
+    }>(
+      `SELECT event, created_at, channel_name
+         FROM voice_logs
+        WHERE guild_id = $1 AND user_id = $2 AND event IN ('join', 'leave')
+        ORDER BY created_at ASC, id ASC`,
+      [guildId, userId],
+    );
+
+    const nowMs = Date.now();
+    const windows = [
+      { key: 'last7' as const, cutoff: nowMs - 7 * DAY_MS },
+      { key: 'last30' as const, cutoff: nowMs - 30 * DAY_MS },
+      { key: 'all' as const, cutoff: -Infinity },
+    ];
+
+    const totals: Record<'last7' | 'last30' | 'all', PeriodVoiceStats> = {
+      last7: { totalMs: 0, sessions: 0 },
+      last30: { totalMs: 0, sessions: 0 },
+      all: { totalMs: 0, sessions: 0 },
+    };
+
+    /** ตัดช่วงเวลาให้อยู่ในหน้าต่าง แล้วบวกเข้าทุกช่วงที่มีส่วนทับกัน */
+    const addSession = (startMs: number, endMs: number): void => {
+      for (const window of windows) {
+        const start = Math.max(startMs, window.cutoff);
+        const end = Math.max(endMs, window.cutoff);
+        if (end > start) {
+          totals[window.key].totalMs += end - start;
+          totals[window.key].sessions += 1;
+        }
+      }
+    };
+
+    let openJoin: number | null = null;
+    let joins = 0;
+    const channelCounts = new Map<string, number>();
+
+    for (const row of result.rows) {
+      const t = new Date(row.created_at).getTime();
+
+      if (row.event === 'join') {
+        if (openJoin === null) openJoin = t;
+        joins += 1;
+        if (row.channel_name) {
+          channelCounts.set(row.channel_name, (channelCounts.get(row.channel_name) ?? 0) + 1);
+        }
+      } else if (openJoin !== null) {
+        addSession(openJoin, t);
+        openJoin = null;
+      }
+    }
+
+    if (openJoin !== null && openNow?.has(userId)) addSession(openJoin, nowMs);
+
+    const topChannel =
+      [...channelCounts.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, count]) => ({ name, count }))[0] ?? null;
+
+    return { ...totals, joins, topChannel };
+  } catch (error) {
+    console.error('[voiceStats] อ่านสถิติรายบุคคลไม่สำเร็จ:', error);
+    return null;
+  }
+}
+
 /** แปลงมิลลิวินาทีเป็นข้อความไทยอ่านง่าย เช่น "2 ชม. 30 น." / "1 วัน 4 ชม." */
 export function formatVoiceDuration(ms: number): string {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));

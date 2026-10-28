@@ -15,6 +15,19 @@ export interface BotEnv {
    * ถ้าไม่ใส่ = ใช้โหมด Global อย่างเดียว (ทุกเซิร์ฟเวอร์ใช้ได้ แต่เซิร์ฟเวอร์ใหม่อาจรอ ~1 ชม.)
    */
   guildIds: string[];
+  /**
+   * Discord user id ของเจ้าของบอท (OWNER_ID) — ใช้เปิด/ยกเลิก Premium ให้เซิร์ฟเวอร์
+   * ใส่ได้หลายคน คั่นด้วย , หรือเว้นวรรค
+   */
+  ownerIds: string[];
+}
+
+/** อ่านรายชื่อเจ้าของบอทจาก OWNER_ID (คั่นด้วย , หรือเว้นวรรค) */
+export function getOwnerIds(): string[] {
+  return (process.env.OWNER_ID ?? '')
+    .split(/[\s,]+/)
+    .map((id) => id.trim())
+    .filter((id) => /^\d{17,20}$/.test(id));
 }
 
 /** เช็คว่ามีการตั้งค่าจริงแล้ว (ไม่ว่าง และไม่ใช่ค่า placeholder ที่ลงท้ายด้วย _HERE) */
@@ -50,5 +63,6 @@ export function loadBotEnv(): BotEnv {
     token,
     clientId,
     guildIds,
+    ownerIds: getOwnerIds(),
   };
 }

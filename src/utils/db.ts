@@ -23,9 +23,12 @@ export function isDbReady(): boolean {
 export function getPool(): Pool | null {
   if (!isDbConfigured()) return null;
   if (!pool) {
+    // PGSSLMODE=disable → ปิด SSL (ใช้กับ PostgreSQL ในเครื่อง/เทสต์ ที่ไม่ได้เปิด SSL)
+    // ค่าเริ่มต้น: เปิด SSL แบบไม่ตรวจใบรับรอง (Supabase/Neon/Render ต้องใช้)
+    const sslDisabled = /^(disable|false|0)$/i.test((process.env.PGSSLMODE ?? '').trim());
     pool = new Pool({
       connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
+      ssl: sslDisabled ? undefined : { rejectUnauthorized: false },
       max: 5,
       connectionTimeoutMillis: 10_000,
     });
@@ -79,6 +82,29 @@ export async function initDb(): Promise<void> {
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )
     `);
+
+    // ── ระบบ Premium (29 บาท/เดือน ต่อเซิร์ฟเวอร์) ─────────────────
+    // 1 แถว = 1 เซิร์ฟเวอร์ที่เคยมีสถานะ Premium
+    // status     : 'active' = ใช้งานอยู่ (เช็ควันหมดอายุจาก current_period_end), 'revoked' = ถูกยกเลิก
+    // price_thb  : ราคาที่ตกลงไว้ตอนเปิดใช้ (เก็บไว้เป็นประวัติ — ขึ้นราคาใหม่ไม่กระทบของเก่า)
+    // granted_by : Discord user id ของผู้ที่เปิดใช้ให้ (เจ้าของบอท หรือระบบชำระเงินในอนาคต)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS guild_subscriptions (
+        guild_id TEXT PRIMARY KEY,
+        plan TEXT NOT NULL DEFAULT 'premium',
+        status TEXT NOT NULL DEFAULT 'active',
+        price_thb INTEGER NOT NULL DEFAULT 29,
+        started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        current_period_end TIMESTAMPTZ,
+        granted_by TEXT,
+        note TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await client.query(
+      'CREATE INDEX IF NOT EXISTS idx_guild_subscriptions_period_end ON guild_subscriptions (current_period_end)',
+    );
 
     // อัปเดตโครงสร้างสำหรับฟีเจอร์ใหม่ (ปลอดภัย — รันซ้ำได้เสมอ)
     // weekly_channel_id    : ห้องที่รับรายงานประจำสัปดาห์
@@ -192,6 +218,8 @@ export interface WeeklyTarget {
   channelId: string;
   /** เวลาที่ส่งรายงานล่าสุด (null = ยังไม่เคยส่ง) */
   lastSent: Date | null;
+  /** เซิร์ฟเวอร์นี้เป็น Premium อยู่หรือไม่ (รายงานอัตโนมัติส่งเฉพาะ Premium) */
+  premium: boolean;
 }
 
 /** รายชื่อเซิร์ฟเวอร์ที่ต้องส่งรายงานประจำสัปดาห์ */
@@ -204,15 +232,21 @@ export async function getWeeklyTargets(): Promise<WeeklyTarget[]> {
       guild_id: string;
       weekly_channel_id: string;
       last_weekly_sent_at: Date | null;
+      premium: boolean;
     }>(
-      `SELECT guild_id, weekly_channel_id, last_weekly_sent_at
-         FROM guild_settings
-        WHERE weekly_channel_id IS NOT NULL`,
+      `SELECT g.guild_id,
+              g.weekly_channel_id,
+              g.last_weekly_sent_at,
+              COALESCE(s.status = 'active' AND s.current_period_end > now(), false) AS premium
+         FROM guild_settings g
+         LEFT JOIN guild_subscriptions s ON s.guild_id = g.guild_id
+        WHERE g.weekly_channel_id IS NOT NULL`,
     );
     return result.rows.map((row) => ({
       guildId: row.guild_id,
       channelId: row.weekly_channel_id,
       lastSent: row.last_weekly_sent_at,
+      premium: row.premium,
     }));
   } catch (error) {
     console.error('[db] ดึงรายชื่อเซิร์ฟเวอร์สำหรับรายงานไม่สำเร็จ:', error);
@@ -296,5 +330,154 @@ export async function deleteVoiceSnapshotDb(guildId: string): Promise<void> {
     await client.query('DELETE FROM voice_snapshot WHERE guild_id = $1', [guildId]);
   } catch (error) {
     console.error('[db] ลบ snapshot ห้องเสียงไม่สำเร็จ:', error);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// ระบบ Premium (ตาราง guild_subscriptions) — 29 บาท/เดือน ต่อเซิร์ฟเวอร์
+// ─────────────────────────────────────────────────────────────
+
+export type SubscriptionStatus = 'active' | 'revoked';
+
+/** แถวข้อมูลการสมัคร Premium ของ 1 เซิร์ฟเวอร์ */
+export interface GuildSubscription {
+  guildId: string;
+  plan: string;
+  status: SubscriptionStatus;
+  /** ราคาที่ตกลงไว้ (บาท/เดือน) — เก็บเป็นประวัติ */
+  priceThb: number;
+  startedAt: Date;
+  /** วันหมดอายุของรอบปัจจุบัน (null = ไม่มีวันหมดอายุ) */
+  currentPeriodEnd: Date | null;
+  grantedBy: string | null;
+  note: string | null;
+  updatedAt: Date;
+}
+
+interface SubscriptionRow {
+  guild_id: string;
+  plan: string;
+  status: SubscriptionStatus;
+  price_thb: number;
+  started_at: Date;
+  current_period_end: Date | null;
+  granted_by: string | null;
+  note: string | null;
+  updated_at: Date;
+}
+
+function mapSubscription(row: SubscriptionRow): GuildSubscription {
+  return {
+    guildId: row.guild_id,
+    plan: row.plan,
+    status: row.status,
+    priceThb: row.price_thb,
+    startedAt: row.started_at,
+    currentPeriodEnd: row.current_period_end,
+    grantedBy: row.granted_by,
+    note: row.note,
+    updatedAt: row.updated_at,
+  };
+}
+
+/** อ่านข้อมูลการสมัครของเซิร์ฟเวอร์ (null = ยังไม่เคยสมัคร) */
+export async function getSubscriptionDb(guildId: string): Promise<GuildSubscription | null> {
+  const client = getPool();
+  if (!client || !ready) return null;
+
+  try {
+    const result = await client.query<SubscriptionRow>(
+      `SELECT guild_id, plan, status, price_thb, started_at, current_period_end,
+              granted_by, note, updated_at
+         FROM guild_subscriptions
+        WHERE guild_id = $1`,
+      [guildId],
+    );
+    return result.rows.length ? mapSubscription(result.rows[0]) : null;
+  } catch (error) {
+    console.error('[db] อ่านสถานะ Premium ไม่สำเร็จ:', error);
+    return null;
+  }
+}
+
+/**
+ * เปิดใช้/ต่ออายุ Premium ของเซิร์ฟเวอร์
+ * - ต่ออายุจากวันหมดอายุเดิมถ้ายังไม่หมด (ไม่เสียวันที่เหลือ) — ไม่งั้นเริ่มนับจากตอนนี้
+ * - คืนแถวข้อมูลล่าสุด (null = บันทึกไม่สำเร็จ/DB ไม่พร้อม)
+ */
+export async function grantSubscriptionDb(options: {
+  guildId: string;
+  days: number;
+  priceThb: number;
+  grantedBy?: string | null;
+  note?: string | null;
+}): Promise<GuildSubscription | null> {
+  const client = getPool();
+  if (!client || !ready) return null;
+
+  const days = Math.max(1, Math.trunc(options.days));
+
+  try {
+    const result = await client.query<SubscriptionRow>(
+      `INSERT INTO guild_subscriptions
+         (guild_id, plan, status, price_thb, started_at, current_period_end, granted_by, note, updated_at)
+       VALUES ($1, 'premium', 'active', $2, now(), now() + make_interval(days => $3::int), $4, $5, now())
+       ON CONFLICT (guild_id)
+       DO UPDATE SET
+         status = 'active',
+         price_thb = EXCLUDED.price_thb,
+         current_period_end =
+           GREATEST(COALESCE(guild_subscriptions.current_period_end, now()), now())
+           + make_interval(days => $3::int),
+         granted_by = EXCLUDED.granted_by,
+         note = EXCLUDED.note,
+         updated_at = now()
+       RETURNING guild_id, plan, status, price_thb, started_at, current_period_end,
+                 granted_by, note, updated_at`,
+      [options.guildId, options.priceThb, days, options.grantedBy ?? null, options.note ?? null],
+    );
+    return result.rows.length ? mapSubscription(result.rows[0]) : null;
+  } catch (error) {
+    console.error('[db] เปิดใช้/ต่ออายุ Premium ไม่สำเร็จ:', error);
+    return null;
+  }
+}
+
+/** ยกเลิก Premium ทันที (เก็บประวัติไว้ — ตั้ง status = 'revoked') */
+export async function revokeSubscriptionDb(guildId: string): Promise<boolean> {
+  const client = getPool();
+  if (!client || !ready) return false;
+
+  try {
+    const result = await client.query(
+      `UPDATE guild_subscriptions
+          SET status = 'revoked',
+              current_period_end = LEAST(COALESCE(current_period_end, now()), now()),
+              updated_at = now()
+        WHERE guild_id = $1`,
+      [guildId],
+    );
+    return (result.rowCount ?? 0) > 0;
+  } catch (error) {
+    console.error('[db] ยกเลิก Premium ไม่สำเร็จ:', error);
+    return false;
+  }
+}
+
+/** เซิร์ฟเวอร์ที่ Premium ยังไม่หมดอายุ (ใช้สรุปจำนวนในหน้าแอดมิน/log) */
+export async function countActiveSubscriptions(): Promise<number> {
+  const client = getPool();
+  if (!client || !ready) return 0;
+
+  try {
+    const result = await client.query<{ total: number }>(
+      `SELECT count(*)::int AS total
+         FROM guild_subscriptions
+        WHERE status = 'active' AND current_period_end > now()`,
+    );
+    return result.rows[0]?.total ?? 0;
+  } catch (error) {
+    console.error('[db] นับจำนวน Premium ไม่สำเร็จ:', error);
+    return 0;
   }
 }
