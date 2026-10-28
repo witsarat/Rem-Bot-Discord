@@ -7,6 +7,7 @@
  */
 import http from 'http';
 import { isDbConfigured, isDbReady } from './db';
+import { botOwnerCount } from './premium';
 
 /** เริ่ม health server (ถ้ามีการตั้งค่า PORT) */
 export function startHealthServer(): void {
@@ -22,6 +23,7 @@ export function startHealthServer(): void {
         status: 'ok',
         bot: 'Ruru — Voice Log Bot',
         db: isDbReady() ? 'connected' : isDbConfigured() ? 'error' : 'off',
+        owners: botOwnerCount(),
         uptime: Math.floor(process.uptime()),
         time: new Date().toISOString(),
       }),
