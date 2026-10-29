@@ -44,12 +44,12 @@ export const DEFAULT_LAYOUT: CardLayout = {
     text: '#fff4ec',
     muted: '#d0b3a3',
   },
-  avatar: { x: 128, y: 132, size: 148 },
-  header: { x: 64, y: 44, titleSize: 13, subtitleSize: 13 },
-  name: { x: 232, y: 118, size: 42 },
-  stats: { x: 64, y: 248, width: 280, height: 160, gap: 16 },
-  band: { x: 64, y: 428, width: 872, height: 76, enabled: true },
-  logo: { enabled: true, x: 936, y: 44, size: 30 },
+  avatar: { x: 112, y: 142, size: 116 },
+  header: { x: 64, y: 48, titleSize: 14, subtitleSize: 12 },
+  name: { x: 190, y: 128, size: 38 },
+  stats: { x: 64, y: 246, width: 280, height: 142, gap: 16 },
+  band: { x: 64, y: 406, width: 872, height: 88, enabled: true },
+  logo: { enabled: true, x: 936, y: 48, size: 30 },
 };
 
 /** ธีมสำเร็จรูป: เปลี่ยนเฉพาะชุดสี (ตำแหน่ง/ขนาดคงเดิม) */
