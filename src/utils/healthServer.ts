@@ -5,15 +5,15 @@
  *
  * เส้นทาง:
  *   GET /                    → health JSON
- *   GET /preview/profile?layout=<base64url> → PNG การ์ดตัวอย่าง (ใช้ในหน้า Card Studio)
- *   GET /preview/weekly?layout=<base64url>  → PNG การ์ดรายงานตัวอย่าง
+ *   GET /preview/profile?theme=<id> → PNG การ์ดตัวอย่างตามธีม (ใช้ในหน้า Card Studio)
+ *   GET /preview/weekly?theme=<id>  → PNG การ์ดรายงานตัวอย่าง
  *
  * พรีวิวใช้ข้อมูลตัวอย่างคงที่ — ไม่แตะข้อมูลจริง และจำกัดอัตราการเรียกต่อ IP
  */
 import http from 'http';
 import { isDbConfigured, isDbReady } from './db';
 import { botOwnerCount } from './premium';
-import { decodeLayout } from './cardLayout';
+import { resolveTheme } from './cardLayout';
 import { renderProfileCard, renderWeeklyCard } from './profileCard';
 
 /** จำกัดการเรียกพรีวิว: 120 ครั้ง/นาที ต่อ IP (ลากปรับการ์ดต่อเนื่องได้) */
@@ -85,11 +85,11 @@ export function startHealthServer(): void {
       }
 
       try {
-        const layout = decodeLayout(url.searchParams.get('layout'));
+        const theme = resolveTheme(url.searchParams.get('theme'));
         const png =
           url.pathname === '/preview/profile'
-            ? await renderProfileCard(DEMO_PROFILE, layout)
-            : await renderWeeklyCard(DEMO_WEEKLY, layout);
+            ? await renderProfileCard(DEMO_PROFILE, theme)
+            : await renderWeeklyCard(DEMO_WEEKLY, theme);
 
         res.writeHead(200, {
           'Content-Type': 'image/png',
