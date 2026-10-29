@@ -32,7 +32,6 @@ function allow(ip: string): boolean {
 
 /** ข้อมูลตัวอย่างสำหรับพรีวิวการ์ด */
 const DEMO_PROFILE = {
-  displayName: 'Zee ✨🎧',
   username: 'zee_special',
   avatarUrl: null as string | null,
   guildName: 'Witsarat Community 🏠',

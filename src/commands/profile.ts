@@ -70,7 +70,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const member: GuildMember | null =
     guild.members.cache.get(targetUser.id) ??
     (await guild.members.fetch(targetUser.id).catch(() => null));
-  const displayName = member?.displayName ?? targetUser.displayName ?? targetUser.username;
 
   const openNow = openVoiceUsers(guild);
   const [stats, board, theme] = await Promise.all([
@@ -89,7 +88,6 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   try {
     const png = await renderProfileCard({
-      displayName,
       username: targetUser.username,
       avatarUrl: targetUser.displayAvatarURL({ extension: 'png', size: 256 }),
       guildName: guild.name,
@@ -117,7 +115,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   // แผนสำรอง: ข้อความล้วน (ไม่ใช้ embed)
   const lines = [
-    `**${displayName}** · @${targetUser.username}`,
+    `**@${targetUser.username}**`,
     `⏱️ 7 วัน: **${formatVoiceDuration(stats.last7.totalMs)}** • 30 วัน: **${formatVoiceDuration(stats.last30.totalMs)}** • ตลอดกาล: **${formatVoiceDuration(stats.all.totalMs)}**`,
     `🏆 อันดับ: **${rank ? `#${rank.place} จาก ${rank.total} คน` : 'ยังไม่ถูกจัดอันดับ'}** • 🔊 ห้องยอดนิยม: **${stats.topChannel?.name ?? '—'}** • 🚪 เข้าห้อง **${stats.joins}** ครั้ง`,
   ];

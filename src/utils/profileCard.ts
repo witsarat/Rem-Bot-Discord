@@ -391,7 +391,7 @@ const TH_DATETIME = new Intl.DateTimeFormat('th-TH', {
 // ─────────────────────────── การ์ด /profile ───────────────────────────
 
 export interface ProfileCardInput {
-  displayName: string;
+  /** ชื่อผู้ใช้ (username) — การ์ดใช้ค่านี้แทน nickname เสมอ */
   username: string;
   avatarUrl: string | null;
   guildName: string;
@@ -426,7 +426,7 @@ export async function renderProfileCard(
   // ── ฮีโร่: avatar + ชื่อ + meta + อันดับ ──
   const avatarCx = MARGIN + 88;
   const avatarCy = 206;
-  drawAvatar(ctx, avatar, avatarCx, avatarCy, 62, (input.displayName || '?').slice(0, 1).toUpperCase(), p);
+  drawAvatar(ctx, avatar, avatarCx, avatarCy, 62, (input.username || '?').slice(0, 1).toUpperCase(), p);
 
   const textX = MARGIN + 176;
 
@@ -455,22 +455,23 @@ export async function renderProfileCard(
   }
 
   const nameMax = W - MARGIN - textX - (rankWidth ? rankWidth + 24 : 0);
-  const name = fitTextBlock(ctx, input.displayName, nameMax, 42, true, 24);
+  const name = fitTextBlock(ctx, input.username, nameMax, 42, true, 24);
   setFont(ctx, name.size, true);
   ctx.fillStyle = p.text;
   ctx.fillText(name.text, textX, 178);
 
+  // บรรทัดรอง: วันที่เข้าร่วม • บรรทัดล่าง: ชื่อเซิร์ฟเวอร์ (ไม่ใช้ nickname)
   setFont(ctx, 15);
   ctx.fillStyle = p.muted;
-  ctx.fillText(clipText(ctx, `@${input.username}`, nameMax, 15), textX, 208);
+  ctx.fillText(
+    clipText(ctx, input.joinedAt ? `เข้าร่วม ${TH_DATE.format(input.joinedAt)}` : 'สมาชิกเซิร์ฟเวอร์นี้', nameMax, 15),
+    textX,
+    208,
+  );
 
-  const metaParts = [
-    input.joinedAt ? `เข้าร่วม ${TH_DATE.format(input.joinedAt)}` : null,
-    input.guildName,
-  ].filter(Boolean) as string[];
   setFont(ctx, 13);
   ctx.fillStyle = p.faint;
-  ctx.fillText(clipText(ctx, metaParts.join('  ·  '), W - MARGIN - textX, 13), textX, 234);
+  ctx.fillText(clipText(ctx, input.guildName, W - MARGIN - textX, 13), textX, 234);
 
   // ── เส้นคั่น ──
   drawHLine(ctx, 278, MARGIN, W - MARGIN, p);
