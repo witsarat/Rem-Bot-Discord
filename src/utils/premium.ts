@@ -47,6 +47,7 @@ export const PREMIUM_FEATURES: PremiumFeatureRow[] = [
   { name: 'รายงานประจำสัปดาห์', free: 'ส่งทดสอบเองได้', premium: 'ส่งอัตโนมัติทุกจันทร์ 09:00' },
   { name: `ประวัติในแดชบอร์ด`, free: `${FREE_HISTORY_DAYS} วันล่าสุด`, premium: 'ทั้งหมด' },
   { name: 'ส่งออก CSV', free: '—', premium: '✓' },
+  { name: 'Role rewards (ยศตามชั่วโมงสะสม)', free: '1 เกณฑ์', premium: 'ไม่จำกัดเกณฑ์' },
 ];
 
 /** สถานะ Premium ของเซิร์ฟเวอร์ 1 แห่ง (ใช้ทั้งในคำสั่ง Discord และหน้าเว็บถ้าต้องการ) */

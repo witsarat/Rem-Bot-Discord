@@ -1,50 +1,31 @@
 /**
  * src/utils/rewards.ts
- * Achievements + Role rewards แบบ voice-only (ไม่ต้องใช้ Message Content intent)
+ * Role rewards แบบ voice-only (ไม่ต้องใช้ Message Content intent)
  *
  * หลักการ:
  *  - คิด "ชั่วโมงสะสมในห้องเสียง" จากตาราง voice_logs (จับคู่ join → leave)
  *    + เซสชันที่ยังเปิดอยู่ของคนที่อยู่ในห้องตอนนี้
- *  - Achievement = ระดับ Copper/Bronze/Silver/Gold (เกณฑ์แก้ได้จากแดชบอร์ด)
- *  - Role reward = ให้ยศอัตโนมัติเมื่อถึงเกณฑ์ (หลายเกณฑ์ต่อเซิร์ฟเวอร์)
- *  - ประกาศลงห้องที่ตั้งไว้ (ถ้าไม่มีสิทธิ์/ห้องหาย จะข้ามการประกาศ แต่ยังให้รางวัล)
+ *  - ให้ยศอัตโนมัติเมื่อถึงเกณฑ์ — ฟรีจำกัด 1 เกณฑ์, Premium ไม่จำกัด
+ *  - ประกาศลงห้องที่ตั้งไว้ (ถ้าไม่มีสิทธิ์/ห้องหาย จะข้ามการประกาศ แต่ยังให้ยศ)
  *  - ทำงานเป็นรอบทุก 10 นาที (กันรันซ้อน) — ตั้งใจให้ช้า ๆ พอ ไม่กิน CPU
  */
 import { ChannelType, Client, EmbedBuilder, TextChannel } from 'discord.js';
 import { getPool, isDbReady } from './db';
+import { isPremium } from './premium';
 
 const CHECK_INTERVAL_MS = 10 * 60 * 1000;
 const FIRST_CHECK_DELAY_MS = 45 * 1000;
 const MAX_ANNOUNCEMENTS_PER_RUN = 10;
 
+/** จำนวนเกณฑ์ให้ยศที่ใช้ได้ในแพ็กเกจฟรี (Premium = ไม่จำกัด) */
+export const FREE_ROLE_REWARD_LIMIT = 1;
+
 export type RetentionMode = 'all' | 'highest';
-
-/** เกณฑ์มาตรฐาน (ชั่วโมง) — ใช้เมื่อเซิร์ฟเวอร์ยังไม่เคยตั้งค่า */
-export const DEFAULT_TIERS: AchievementTier[] = [
-  { tier: 'copper', thresholdSeconds: 3_600 },
-  { tier: 'bronze', thresholdSeconds: 10_800 },
-  { tier: 'silver', thresholdSeconds: 36_000 },
-  { tier: 'gold', thresholdSeconds: 90_000 },
-];
-
-export const TIER_META: Record<string, { name: string; emoji: string; color: number }> = {
-  copper: { name: 'Copper', emoji: '🥉', color: 0xb87333 },
-  bronze: { name: 'Bronze', emoji: '🥈', color: 0xcd7f32 },
-  silver: { name: 'Silver', emoji: '🥇', color: 0xc0c0c0 },
-  gold: { name: 'Gold', emoji: '🏆', color: 0xffd166 },
-};
 
 export interface RewardConfig {
   announceChannelId: string | null;
-  achievementsEnabled: boolean;
   rewardsEnabled: boolean;
   retention: RetentionMode;
-}
-
-export interface AchievementTier {
-  tier: string;
-  thresholdSeconds: number;
-  enabled?: boolean;
 }
 
 export interface RoleReward {
@@ -60,7 +41,6 @@ export interface VoiceTotal {
 
 const EMPTY_CONFIG: RewardConfig = {
   announceChannelId: null,
-  achievementsEnabled: false,
   rewardsEnabled: false,
   retention: 'all',
 };
@@ -101,7 +81,7 @@ export async function getVoiceTotals(guildId: string): Promise<VoiceTotal[]> {
   }
 }
 
-/** อ่านค่าตั้งโมดูล (ไม่มีแถว = ปิดทั้งหมด) */
+/** อ่านค่าตั้งโมดูล (ไม่มีแถว = ปิด) */
 export async function getRewardConfig(guildId: string): Promise<RewardConfig> {
   const pool = getPool();
   if (!pool || !isDbReady()) return { ...EMPTY_CONFIG };
@@ -109,11 +89,10 @@ export async function getRewardConfig(guildId: string): Promise<RewardConfig> {
   try {
     const result = await pool.query<{
       announce_channel_id: string | null;
-      achievements_enabled: boolean;
       rewards_enabled: boolean;
       retention: RetentionMode;
     }>(
-      `SELECT announce_channel_id, achievements_enabled, rewards_enabled, retention
+      `SELECT announce_channel_id, rewards_enabled, retention
          FROM guild_reward_config WHERE guild_id = $1`,
       [guildId],
     );
@@ -121,7 +100,6 @@ export async function getRewardConfig(guildId: string): Promise<RewardConfig> {
     if (!row) return { ...EMPTY_CONFIG };
     return {
       announceChannelId: row.announce_channel_id,
-      achievementsEnabled: row.achievements_enabled,
       rewardsEnabled: row.rewards_enabled,
       retention: row.retention === 'highest' ? 'highest' : 'all',
     };
@@ -131,33 +109,7 @@ export async function getRewardConfig(guildId: string): Promise<RewardConfig> {
   }
 }
 
-/** เกณฑ์ achievement (ค่าเริ่มต้น 1/3/10/25 ชม. ถ้ายังไม่ตั้ง) */
-export async function getAchievementTiers(guildId: string): Promise<AchievementTier[]> {
-  const pool = getPool();
-  if (!pool || !isDbReady()) return DEFAULT_TIERS.map((tier) => ({ ...tier }));
-
-  try {
-    const result = await pool.query<{ tier: string; threshold_seconds: string; enabled: boolean }>(
-      'SELECT tier, threshold_seconds, enabled FROM guild_achievements WHERE guild_id = $1 AND kind = $2',
-      [guildId, 'voice'],
-    );
-    if (!result.rows.length) return DEFAULT_TIERS.map((tier) => ({ ...tier }));
-
-    return result.rows
-      .map((row) => ({
-        tier: row.tier,
-        thresholdSeconds: Number(row.threshold_seconds),
-        enabled: row.enabled,
-      }))
-      .filter((tier) => tier.enabled !== false)
-      .sort((a, b) => a.thresholdSeconds - b.thresholdSeconds);
-  } catch (error) {
-    console.error('[rewards] อ่านเกณฑ์ achievement ไม่สำเร็จ:', error);
-    return DEFAULT_TIERS.map((tier) => ({ ...tier }));
-  }
-}
-
-/** เกณฑ์ให้ยศ (เปิดใช้ทั้งหมดที่ตั้งไว้) */
+/** เกณฑ์ให้ยศ (เรียงจากน้อยไปมาก) */
 export async function getRoleRewards(guildId: string): Promise<RoleReward[]> {
   const pool = getPool();
   if (!pool || !isDbReady()) return [];
@@ -181,19 +133,13 @@ export async function getRoleRewards(guildId: string): Promise<RoleReward[]> {
   }
 }
 
-async function getAwardedAchievements(guildId: string): Promise<Set<string>> {
-  const pool = getPool();
-  if (!pool || !isDbReady()) return new Set();
-
-  try {
-    const result = await pool.query<{ user_id: string; tier: string }>(
-      'SELECT user_id, tier FROM member_achievements WHERE guild_id = $1 AND kind = $2',
-      [guildId, 'voice'],
-    );
-    return new Set(result.rows.map((row) => `${row.user_id}:${row.tier}`));
-  } catch {
-    return new Set();
-  }
+/** เกณฑ์ที่ "มีผลจริง" ตามแพ็กเกจ — ฟรีใช้ได้เฉพาะเกณฑ์ที่ต่ำที่สุด 1 เกณฑ์ */
+export async function getActiveRoleRewards(guildId: string): Promise<{ rewards: RoleReward[]; premium: boolean }> {
+  const [rewards, premium] = await Promise.all([getRoleRewards(guildId), isPremium(guildId)]);
+  return {
+    rewards: premium ? rewards : rewards.slice(0, FREE_ROLE_REWARD_LIMIT),
+    premium,
+  };
 }
 
 async function getAwardedRoles(guildId: string): Promise<Set<string>> {
@@ -211,24 +157,7 @@ async function getAwardedRoles(guildId: string): Promise<Set<string>> {
   }
 }
 
-/** เลือก achievement ที่ยังไม่เคยได้ และถึงเกณฑ์แล้ว (pure — ใช้ทดสอบได้) */
-export function selectNewAchievements(
-  totals: VoiceTotal[],
-  tiers: AchievementTier[],
-  awarded: Set<string>,
-): Array<{ userId: string; tier: string; thresholdSeconds: number; seconds: number }> {
-  const out: Array<{ userId: string; tier: string; thresholdSeconds: number; seconds: number }> = [];
-  for (const total of totals) {
-    for (const tier of tiers) {
-      if (total.seconds < tier.thresholdSeconds) continue;
-      if (awarded.has(`${total.userId}:${tier.tier}`)) continue;
-      out.push({ userId: total.userId, tier: tier.tier, thresholdSeconds: tier.thresholdSeconds, seconds: total.seconds });
-    }
-  }
-  return out;
-}
-
-/** เลือกยศที่ยังไม่เคยให้ และถึงเกณฑ์แล้ว (pure) */
+/** เลือกยศที่ยังไม่เคยให้ และถึงเกณฑ์แล้ว (pure — ใช้ทดสอบได้) */
 export function selectNewRoleRewards(
   totals: VoiceTotal[],
   rewards: RoleReward[],
@@ -243,28 +172,6 @@ export function selectNewRoleRewards(
     }
   }
   return out;
-}
-
-/** ระดับ achievement สูงสุดที่สมาชิกคนนี้ได้ (ใช้โชว์บนการ์ด /profile) */
-export async function getHighestAchievement(
-  guildId: string,
-  userId: string,
-): Promise<{ tier: string; thresholdSeconds: number } | null> {
-  const pool = getPool();
-  if (!pool || !isDbReady()) return null;
-
-  try {
-    const result = await pool.query<{ tier: string; threshold_seconds: string }>(
-      `SELECT tier, threshold_seconds FROM member_achievements
-        WHERE guild_id = $1 AND user_id = $2 AND kind = 'voice'
-        ORDER BY threshold_seconds DESC LIMIT 1`,
-      [guildId, userId],
-    );
-    const row = result.rows[0];
-    return row ? { tier: row.tier, thresholdSeconds: Number(row.threshold_seconds) } : null;
-  } catch {
-    return null;
-  }
 }
 
 function formatHours(seconds: number): string {
@@ -287,155 +194,104 @@ async function announce(client: Client, guildId: string, channelId: string | nul
   });
 }
 
-/** ตรวจเซิร์ฟเวอร์เดียว: ให้ achievement + ยศที่ถึงเกณฑ์ แล้วบันทึก/ประกาศ */
-export async function evaluateGuild(client: Client, guildId: string): Promise<{ achievements: number; roles: number }> {
+/** ตรวจเซิร์ฟเวอร์เดียว: ให้ยศที่ถึงเกณฑ์ แล้วบันทึก/ประกาศ */
+export async function evaluateGuild(client: Client, guildId: string): Promise<{ roles: number }> {
   const config = await getRewardConfig(guildId);
-  if (!config.achievementsEnabled && !config.rewardsEnabled) return { achievements: 0, roles: 0 };
+  if (!config.rewardsEnabled) return { roles: 0 };
 
   const guild = client.guilds.cache.get(guildId);
   const pool = getPool();
-  if (!guild || !pool || !isDbReady()) return { achievements: 0, roles: 0 };
+  if (!guild || !pool || !isDbReady()) return { roles: 0 };
+
+  const { rewards } = await getActiveRoleRewards(guildId);
+  if (!rewards.length) return { roles: 0 };
 
   const totals = await getVoiceTotals(guildId);
-  if (!totals.length) return { achievements: 0, roles: 0 };
+  if (!totals.length) return { roles: 0 };
 
-  let achievements = 0;
+  const awardedRoles = await getAwardedRoles(guildId);
+  const pending = selectNewRoleRewards(totals, rewards, awardedRoles);
+
   let roles = 0;
   let announcements = 0;
 
-  // ── Achievements ─────────────────────────────────────────────
-  if (config.achievementsEnabled) {
-    const tiers = await getAchievementTiers(guildId);
-    const awarded = await getAwardedAchievements(guildId);
-    const pending = selectNewAchievements(totals, tiers, awarded);
+  for (const item of pending) {
+    const member = await guild.members.fetch(item.userId).catch(() => null);
+    if (!member) continue;
 
-    const byUser = new Map<string, typeof pending>();
-    for (const item of pending) {
-      const list = byUser.get(item.userId) ?? [];
-      list.push(item);
-      byUser.set(item.userId, list);
-    }
-
-    for (const [userId, items] of byUser) {
-      for (const item of items) {
-        await pool
-          .query(
-            `INSERT INTO member_achievements (guild_id, user_id, kind, tier, threshold_seconds)
-             VALUES ($1, $2, 'voice', $3, $4)
-             ON CONFLICT DO NOTHING`,
-            [guildId, userId, item.tier, item.thresholdSeconds],
-          )
-          .catch((error) => console.error('[rewards] บันทึก achievement ไม่สำเร็จ:', error));
-        achievements += 1;
-      }
-
-      if (announcements < MAX_ANNOUNCEMENTS_PER_RUN) {
-        const lines = items
-          .sort((a, b) => a.thresholdSeconds - b.thresholdSeconds)
-          .map((item) => {
-            const meta = TIER_META[item.tier] ?? { name: item.tier, emoji: '🎖️', color: 0xffd166 };
-            return `${meta.emoji} **${meta.name}** — ${formatHours(item.thresholdSeconds)}`;
-          });
-
-        const embed = new EmbedBuilder()
-          .setColor(TIER_META[items[0].tier]?.color ?? 0xffd166)
-          .setTitle('🎖️ ปลดล็อก Achievement ใหม่')
-          .setDescription(`<@${userId}> ทำสถิติห้องเสียงสะสมได้แล้ว\n\n${lines.join('\n')}`)
-          .setFooter({ text: 'สะสมเวลาจากการอยู่ในห้องเสียงทุกครั้ง' })
-          .setTimestamp();
-
-        await announce(client, guildId, config.announceChannelId, embed);
-        announcements += 1;
-      }
-    }
-  }
-
-  // ── Role rewards ─────────────────────────────────────────────
-  if (config.rewardsEnabled) {
-    const rewards = await getRoleRewards(guildId);
-    const awardedRoles = await getAwardedRoles(guildId);
-    const pending = selectNewRoleRewards(totals, rewards, awardedRoles);
-
-    for (const item of pending) {
-      const member = await guild.members.fetch(item.userId).catch(() => null);
-      if (!member) continue;
-
-      if (member.roles.cache.has(item.roleId)) {
-        // มียศอยู่แล้ว (ให้ด้วยมือ) → บันทึกว่าให้แล้ว ไม่ต้องประกาศซ้ำ
-        await pool
-          .query(
-            `INSERT INTO member_role_awards (guild_id, user_id, role_id, threshold_seconds)
-             VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
-            [guildId, item.userId, item.roleId, item.thresholdSeconds],
-          )
-          .catch(() => null);
-        continue;
-      }
-
-      const added = await member.roles
-        .add(item.roleId, `Ruru: ถึงเกณฑ์ ${formatHours(item.thresholdSeconds)} ในห้องเสียง`)
-        .then(() => true)
-        .catch((error) => {
-          console.warn(`[rewards] ให้ยศไม่สำเร็จ (${guildId}/${item.userId}):`, error instanceof Error ? error.message : error);
-          return false;
-        });
-
-      if (!added) continue;
-      roles += 1;
-
+    if (member.roles.cache.has(item.roleId)) {
+      // มียศอยู่แล้ว (ให้ด้วยมือ) → บันทึกว่าให้แล้ว ไม่ต้องประกาศซ้ำ
       await pool
         .query(
           `INSERT INTO member_role_awards (guild_id, user_id, role_id, threshold_seconds)
            VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
           [guildId, item.userId, item.roleId, item.thresholdSeconds],
         )
-        .catch((error) => console.error('[rewards] บันทึกยศไม่สำเร็จ:', error));
+        .catch(() => null);
+      continue;
+    }
 
-      // โหมด "เก็บเฉพาะยศสูงสุด": ถอดยศเก่าที่เบากว่า (เฉพาะที่ตั้งไว้ในโมดูลนี้)
-      if (config.retention === 'highest') {
-        const lower = rewards.filter((reward) => reward.thresholdSeconds < item.thresholdSeconds);
-        for (const reward of lower) {
-          if (!member.roles.cache.has(reward.roleId)) continue;
-          await member.roles
-            .remove(reward.roleId, 'Ruru: ได้ยศที่สูงกว่าแล้ว (retention = highest)')
-            .catch(() => null);
-        }
+    const added = await member.roles
+      .add(item.roleId, `Ruru: ถึงเกณฑ์ ${formatHours(item.thresholdSeconds)} ในห้องเสียง`)
+      .then(() => true)
+      .catch((error) => {
+        console.warn(`[rewards] ให้ยศไม่สำเร็จ (${guildId}/${item.userId}):`, error instanceof Error ? error.message : error);
+        return false;
+      });
+
+    if (!added) continue;
+    roles += 1;
+
+    await pool
+      .query(
+        `INSERT INTO member_role_awards (guild_id, user_id, role_id, threshold_seconds)
+         VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING`,
+        [guildId, item.userId, item.roleId, item.thresholdSeconds],
+      )
+      .catch((error) => console.error('[rewards] บันทึกยศไม่สำเร็จ:', error));
+
+    // โหมด "เก็บเฉพาะยศสูงสุด": ถอดยศเก่าที่เบ่ากว่า (เฉพาะที่ตั้งไว้ในโมดูลนี้)
+    if (config.retention === 'highest') {
+      const lower = rewards.filter((reward) => reward.thresholdSeconds < item.thresholdSeconds);
+      for (const reward of lower) {
+        if (!member.roles.cache.has(reward.roleId)) continue;
+        await member.roles
+          .remove(reward.roleId, 'Ruru: ได้ยศที่สูงกว่าแล้ว (retention = highest)')
+          .catch(() => null);
       }
+    }
 
-      if (announcements < MAX_ANNOUNCEMENTS_PER_RUN) {
-        const embed = new EmbedBuilder()
-          .setColor(0xffd166)
-          .setTitle('🏅 ได้รับยศจากเวลาในห้องเสียง')
-          .setDescription(
-            `<@${item.userId}> ถึงเกณฑ์ **${formatHours(item.thresholdSeconds)}** แล้ว ได้รับ <@&${item.roleId}>`,
-          )
-          .setTimestamp();
+    if (announcements < MAX_ANNOUNCEMENTS_PER_RUN) {
+      const embed = new EmbedBuilder()
+        .setColor(0xffd166)
+        .setTitle('🏅 ได้รับยศจากเวลาในห้องเสียง')
+        .setDescription(
+          `<@${item.userId}> ถึงเกณฑ์ **${formatHours(item.thresholdSeconds)}** แล้ว ได้รับ <@&${item.roleId}>`,
+        )
+        .setTimestamp();
 
-        await announce(client, guildId, config.announceChannelId, embed);
-        announcements += 1;
-      }
+      await announce(client, guildId, config.announceChannelId, embed);
+      announcements += 1;
     }
   }
 
-  return { achievements, roles };
+  return { roles };
 }
 
-/** ตรวจทุกเซิร์ฟเวอร์ที่มีการตั้งค่าไว้ (เรียกทุก 10 นาที) */
+/** ตรวจทุกเซิร์ฟเวอร์ที่เปิดโมดูลไว้ (เรียกทุก 10 นาที) */
 async function runAll(client: Client): Promise<void> {
   const pool = getPool();
   if (!pool || !isDbReady()) return;
 
   const result = await pool.query<{ guild_id: string }>(
-    'SELECT guild_id FROM guild_reward_config WHERE achievements_enabled OR rewards_enabled',
+    'SELECT guild_id FROM guild_reward_config WHERE rewards_enabled',
   );
 
   for (const row of result.rows) {
     try {
       const outcome = await evaluateGuild(client, row.guild_id);
-      if (outcome.achievements || outcome.roles) {
-        console.log(
-          `[rewards] ${row.guild_id}: achievement ใหม่ ${outcome.achievements} รายการ, ยศใหม่ ${outcome.roles} รายการ`,
-        );
+      if (outcome.roles) {
+        console.log(`[rewards] ${row.guild_id}: ให้ยศใหม่ ${outcome.roles} รายการ`);
       }
     } catch (error) {
       console.error(`[rewards] ตรวจเซิร์ฟเวอร์ ${row.guild_id} ไม่สำเร็จ:`, error);
@@ -459,5 +315,5 @@ export function startRewardsScheduler(client: Client): void {
 
   setTimeout(tick, FIRST_CHECK_DELAY_MS);
   setInterval(tick, CHECK_INTERVAL_MS);
-  console.log('🎖️ ระบบ Achievements + Role rewards พร้อมแล้ว — ตรวจทุก 10 นาที');
+  console.log('🏅 ระบบ Role rewards พร้อมแล้ว — ตรวจทุก 10 นาที');
 }

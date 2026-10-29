@@ -383,8 +383,6 @@ export interface ProfileCardInput {
   guildName: string;
   joinedAt: Date | null;
   rank: { place: number; total: number } | null;
-  /** ข้อความ achievement สูงสุด เช่น "🥇 Silver · 10 ชม." (ไม่ใส่ = ไม่แสดง) */
-  achievementLabel?: string | null;
   stats: {
     last7Ms: number;
     last7Sessions: number;
@@ -505,14 +503,6 @@ export async function renderProfileCard(
   setFont(ctx, 14);
   ctx.fillStyle = t.muted;
   ctx.fillText(`อัปเดต ${TH_DATETIME.format(new Date())} น.`, layout.header.x, layout.height - 20);
-
-  if (input.achievementLabel) {
-    setFont(ctx, 14, true);
-    ctx.textAlign = 'right';
-    ctx.fillStyle = t.accentSoft;
-    ctx.fillText(input.achievementLabel, layout.width - layout.header.x, layout.height - 20);
-    ctx.textAlign = 'left';
-  }
 
   return ctx.canvas.encode('png');
 }

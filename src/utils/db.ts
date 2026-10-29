@@ -118,29 +118,17 @@ export async function initDb(): Promise<void> {
       )
     `);
 
-    // ── Achievements + Role rewards (voice-only) ──────────────────
+    // ── Role rewards (voice-only) ────────────────────────────────
     // guild_reward_config : เปิด/ปิดโมดูล + ห้องประกาศ + โหมดเก็บยศ
-    // guild_achievements  : เกณฑ์ระดับ Copper/Bronze/Silver/Gold (วินาที)
-    // guild_role_rewards  : เกณฑ์ให้ยศอัตโนมัติ (หลายแถวต่อเซิร์ฟเวอร์)
-    // member_*            : ประวัติว่าใครได้อะไรแล้ว (กันให้ซ้ำ)
+    // guild_role_rewards : เกณฑ์ให้ยศอัตโนมัติ (ฟรี 1 เกณฑ์ / Premium ไม่จำกัด)
+    // member_role_awards : ประวัติว่าใครได้ยศอะไรแล้ว (กันให้ซ้ำ)
     await client.query(`
       CREATE TABLE IF NOT EXISTS guild_reward_config (
         guild_id TEXT PRIMARY KEY,
         announce_channel_id TEXT,
-        achievements_enabled BOOLEAN NOT NULL DEFAULT false,
         rewards_enabled BOOLEAN NOT NULL DEFAULT false,
         retention TEXT NOT NULL DEFAULT 'all',
         updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-      )
-    `);
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS guild_achievements (
-        guild_id TEXT NOT NULL,
-        kind TEXT NOT NULL DEFAULT 'voice',
-        tier TEXT NOT NULL,
-        threshold_seconds BIGINT NOT NULL,
-        enabled BOOLEAN NOT NULL DEFAULT true,
-        PRIMARY KEY (guild_id, kind, tier)
       )
     `);
     await client.query(`
@@ -155,17 +143,6 @@ export async function initDb(): Promise<void> {
       )
     `);
     await client.query(`
-      CREATE TABLE IF NOT EXISTS member_achievements (
-        guild_id TEXT NOT NULL,
-        user_id TEXT NOT NULL,
-        kind TEXT NOT NULL DEFAULT 'voice',
-        tier TEXT NOT NULL,
-        threshold_seconds BIGINT NOT NULL,
-        awarded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-        PRIMARY KEY (guild_id, user_id, kind, tier)
-      )
-    `);
-    await client.query(`
       CREATE TABLE IF NOT EXISTS member_role_awards (
         guild_id TEXT NOT NULL,
         user_id TEXT NOT NULL,
@@ -176,16 +153,9 @@ export async function initDb(): Promise<void> {
       )
     `);
 
-    // อัปเดตโครงสร้างสำหรับฟีเจอร์ใหม่ (ปลอดภัย — รันซ้ำได้เสมอ)
-    // weekly_channel_id    : ห้องที่รับรายงานประจำสัปดาห์
-    // last_weekly_sent_at  : เวลาส่งรายงานล่าสุด (กันส่งซ้ำข้ามการรีสตาร์ท)
-    // log_channel_id       : เดิม NOT NULL → ผ่อนเป็น nullable เพื่อรองรับดิสที่ตั้งแค่รายงาน
-    await client.query('ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS weekly_channel_id TEXT');
-    await client.query('ALTER TABLE guild_settings ADD COLUMN IF NOT EXISTS last_weekly_sent_at TIMESTAMPTZ');
-    await client.query('ALTER TABLE guild_settings ALTER COLUMN log_channel_id DROP NOT NULL');
-
     ready = true;
     console.log('🗄️ เชื่อมต่อฐานข้อมูลออนไลน์แล้ว — เก็บ log + ห้องลง DB');
+
   } catch (error) {
     ready = false;
     console.error(
