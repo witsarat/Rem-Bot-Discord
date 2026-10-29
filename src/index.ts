@@ -7,6 +7,7 @@ import { ActivityType, Client, Events, GatewayIntentBits, MessageFlags, Team } f
 import { commands } from './commands';
 import { registerVoiceStateUpdate } from './events/voiceStateUpdate';
 import { startWeeklyScheduler } from './utils/weeklyReport';
+import { startRewardsScheduler } from './utils/rewards';
 import { loadBotEnv } from './utils/env';
 import { startHealthServer } from './utils/healthServer';
 import { initDb, syncBotGuilds, deleteVoiceSnapshotDb } from './utils/db';
@@ -81,6 +82,9 @@ client.on(Events.ChannelUpdate, (_oldChannel, newChannel) => {
 
 // 3.05) ระบบรายงานประจำสัปดาห์ — ส่งอัตโนมัติทุกวันจันทร์ 09:00 น. (เวลาไทย)
 startWeeklyScheduler(client);
+
+// 3.06) Achievements + Role rewards (voice-only) — ตรวจทุก 10 นาที
+startRewardsScheduler(client);
 
 // 3.1) จัดการ Slash Commands (/setup, /help)
 client.on(Events.InteractionCreate, async (interaction) => {

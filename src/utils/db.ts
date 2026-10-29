@@ -118,6 +118,64 @@ export async function initDb(): Promise<void> {
       )
     `);
 
+    // ── Achievements + Role rewards (voice-only) ──────────────────
+    // guild_reward_config : เปิด/ปิดโมดูล + ห้องประกาศ + โหมดเก็บยศ
+    // guild_achievements  : เกณฑ์ระดับ Copper/Bronze/Silver/Gold (วินาที)
+    // guild_role_rewards  : เกณฑ์ให้ยศอัตโนมัติ (หลายแถวต่อเซิร์ฟเวอร์)
+    // member_*            : ประวัติว่าใครได้อะไรแล้ว (กันให้ซ้ำ)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS guild_reward_config (
+        guild_id TEXT PRIMARY KEY,
+        announce_channel_id TEXT,
+        achievements_enabled BOOLEAN NOT NULL DEFAULT false,
+        rewards_enabled BOOLEAN NOT NULL DEFAULT false,
+        retention TEXT NOT NULL DEFAULT 'all',
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS guild_achievements (
+        guild_id TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'voice',
+        tier TEXT NOT NULL,
+        threshold_seconds BIGINT NOT NULL,
+        enabled BOOLEAN NOT NULL DEFAULT true,
+        PRIMARY KEY (guild_id, kind, tier)
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS guild_role_rewards (
+        id BIGSERIAL PRIMARY KEY,
+        guild_id TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'voice',
+        threshold_seconds BIGINT NOT NULL,
+        role_id TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (guild_id, kind, threshold_seconds, role_id)
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS member_achievements (
+        guild_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'voice',
+        tier TEXT NOT NULL,
+        threshold_seconds BIGINT NOT NULL,
+        awarded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (guild_id, user_id, kind, tier)
+      )
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS member_role_awards (
+        guild_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        role_id TEXT NOT NULL,
+        threshold_seconds BIGINT NOT NULL,
+        awarded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (guild_id, user_id, role_id)
+      )
+    `);
+
     // อัปเดตโครงสร้างสำหรับฟีเจอร์ใหม่ (ปลอดภัย — รันซ้ำได้เสมอ)
     // weekly_channel_id    : ห้องที่รับรายงานประจำสัปดาห์
     // last_weekly_sent_at  : เวลาส่งรายงานล่าสุด (กันส่งซ้ำข้ามการรีสตาร์ท)

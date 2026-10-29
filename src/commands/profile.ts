@@ -18,6 +18,7 @@ import {
 import { isDbReady } from '../utils/db';
 import { formatVoiceDuration, getVoiceLeaderboard, getUserVoiceStats } from '../utils/voiceStats';
 import { getCardLayout } from '../utils/cardLayout';
+import { getHighestAchievement, TIER_META } from '../utils/rewards';
 import { renderProfileCard } from '../utils/profileCard';
 
 export const data = new SlashCommandBuilder()
@@ -73,10 +74,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const displayName = member?.displayName ?? targetUser.displayName ?? targetUser.username;
 
   const openNow = openVoiceUsers(guild);
-  const [stats, board, layout] = await Promise.all([
+  const [stats, board, layout, achievement] = await Promise.all([
     getUserVoiceStats(guild.id, targetUser.id, openNow),
     getVoiceLeaderboard(guild.id, null, openNow),
     getCardLayout(guild.id, 'profile'),
+    getHighestAchievement(guild.id, targetUser.id),
   ]);
 
   if (!stats) {
@@ -95,6 +97,9 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
       guildName: guild.name,
       joinedAt: member?.joinedAt ?? null,
       rank,
+      achievementLabel: achievement
+        ? `${TIER_META[achievement.tier]?.emoji ?? '🎖️'} ${TIER_META[achievement.tier]?.name ?? achievement.tier} · ${formatVoiceDuration(achievement.thresholdSeconds * 1000)}`
+        : null,
       stats: {
         last7Ms: stats.last7.totalMs,
         last7Sessions: stats.last7.sessions,
