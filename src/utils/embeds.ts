@@ -1,30 +1,37 @@
 /**
  * src/utils/embeds.ts
- * ตัวช่วยสร้างข้อความ Embed สำหรับ voice log พร้อมสีประจำแต่ละเหตุการณ์
+ * Embed สำหรับ voice log — ดีไซน์ใหม่แบบบรรทัดเดียว อ่านเร็ว ไม่รกห้อง
+ *
  *   🟢 เขียว  = เข้าห้องเสียง (Join)
  *   🔴 แดง    = ออกจากห้องเสียง (Leave)
  *   🟡 เหลือง = ย้ายห้องเสียง (Move)
+ *
+ * โครงเดียวกันทุกเหตุการณ์:
+ *   [avatar] @username
+ *   สถานะตัวหนา
+ *   🔊 #ห้อง · จำนวนคน
+ *   ── RURU · Voice Log · เวลา
  */
 import { EmbedBuilder, GuildMember, VoiceBasedChannel } from 'discord.js';
 
-/** สีประจำเหตุการณ์ (ใช้ในฟีเจอร์ Voice Log) */
+/** สีประจำเหตุการณ์ — โทนนุ่มลง อ่านง่ายบนธีมมืด/สว่างของ Discord */
 export const VoiceLogColors = {
   /** 🟢 เขียว — สมาชิกเข้าห้องเสียง */
-  Join: 0x57f287,
+  Join: 0x3fb950,
   /** 🔴 แดง — สมาชิกออกจากห้องเสียง */
-  Leave: 0xed4245,
+  Leave: 0xf85149,
   /** 🟡 เหลือง — สมาชิกย้ายห้องเสียง */
-  Move: 0xfee75c,
+  Move: 0xd29922,
 } as const;
 
-/** ส่วนหัวของ embed ทุกอัน: ชื่อ + รูปโปรไฟล์ + footer + เวลาปัจจุบัน */
+/** ส่วนหัวของ embed ทุกอัน: @username + รูปโปรไฟล์ + footer + เวลาปัจจุบัน */
 function baseVoiceEmbed(member: GuildMember): EmbedBuilder {
   return new EmbedBuilder()
     .setAuthor({
-      name: member.displayName,
+      name: `@${member.user.username}`,
       iconURL: member.user.displayAvatarURL({ size: 128 }),
     })
-    .setFooter({ text: `User ID: ${member.id}` })
+    .setFooter({ text: 'RURU · Voice Log' })
     .setTimestamp();
 }
 
@@ -32,24 +39,14 @@ function baseVoiceEmbed(member: GuildMember): EmbedBuilder {
 export function createVoiceJoinEmbed(member: GuildMember, channel: VoiceBasedChannel): EmbedBuilder {
   return baseVoiceEmbed(member)
     .setColor(VoiceLogColors.Join)
-    .setTitle('🟢 เข้าห้องเสียง (Join)')
-    .setDescription(`➡️ ${member} เข้าห้องเสียง **${channel.name}**`)
-    .addFields(
-      { name: '🔊 ห้องเสียง', value: `${channel}`, inline: true },
-      { name: '👥 สมาชิกในห้อง', value: `${channel.members.size} คน`, inline: true },
-    );
+    .setDescription(`**เข้าห้องเสียง**\n🔊 ${channel} · ${channel.members.size} คนในห้อง`);
 }
 
 /** Embed สีแดง: ออกจากห้องเสียง */
 export function createVoiceLeaveEmbed(member: GuildMember, channel: VoiceBasedChannel): EmbedBuilder {
   return baseVoiceEmbed(member)
     .setColor(VoiceLogColors.Leave)
-    .setTitle('🔴 ออกจากห้องเสียง (Leave)')
-    .setDescription(`⬅️ ${member} ออกจากห้องเสียง **${channel.name}**`)
-    .addFields(
-      { name: '🔊 ห้องเสียง', value: `${channel}`, inline: true },
-      { name: '👥 สมาชิกคงเหลือ', value: `${channel.members.size} คน`, inline: true },
-    );
+    .setDescription(`**ออกจากห้องเสียง**\n🔇 ${channel} · เหลือ ${channel.members.size} คน`);
 }
 
 /** Embed สีเหลือง: ย้ายห้องเสียง */
@@ -60,10 +57,5 @@ export function createVoiceMoveEmbed(
 ): EmbedBuilder {
   return baseVoiceEmbed(member)
     .setColor(VoiceLogColors.Move)
-    .setTitle('🟡 ย้ายห้องเสียง (Move)')
-    .setDescription(`🔄 ${member} ย้ายห้องเสียง`)
-    .addFields(
-      { name: '📤 จากห้อง', value: `${fromChannel}`, inline: true },
-      { name: '📥 ไปห้อง', value: `${toChannel}`, inline: true },
-    );
+    .setDescription(`**ย้ายห้องเสียง**\n${fromChannel} → ${toChannel}`);
 }
