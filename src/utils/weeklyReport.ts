@@ -8,7 +8,7 @@
  */
 import { AttachmentBuilder, ChannelType, Client, EmbedBuilder } from 'discord.js';
 import { getWeeklyTargets, isDbReady, markWeeklySent } from './db';
-import { getCardTheme } from './cardLayout';
+import { getCardBackground, getCardTheme } from './cardLayout';
 import { isPremium } from './premium';
 import { renderWeeklyCard } from './profileCard';
 import { DAY_MS, formatVoiceDuration, getVoiceLeaderboard, VoiceLeaderboard } from './voiceStats';
@@ -121,7 +121,10 @@ export async function sendWeeklyReport(
 
   if (premium) {
     try {
-      const theme = await getCardTheme(guildId, 'weekly');
+      const [theme, background] = await Promise.all([
+        getCardTheme(guildId, 'weekly'),
+        getCardBackground(guildId, 'weekly'),
+      ]);
       const png = await renderWeeklyCard({
         guildName: guild.name,
         from: new Date(toMs - WEEK_MS),
@@ -134,7 +137,7 @@ export async function sendWeeklyReport(
           totalMs: row.totalMs,
           sessions: row.sessions,
         })),
-      }, theme);
+      }, theme, background);
 
       await channel.send({
         files: [new AttachmentBuilder(png, { name: 'ruru-weekly.png' })],

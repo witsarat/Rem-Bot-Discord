@@ -187,8 +187,26 @@ function clipText(ctx: SKRSContext2D, text: string, maxWidth: number, size: numb
   return `${result}…`;
 }
 
-/** พื้นหลังการ์ด + ไฮไลต์สี accent */
-function drawBackground(ctx: SKRSContext2D, p: Palette, width = W, height = H): void {
+/** พื้นหลังการ์ด: ถ้ามีรูปที่อัปโหลด (Canva) ใช้วาดแทน gradient ทั้งหมด */
+function drawBackground(
+  ctx: SKRSContext2D,
+  p: Palette,
+  width = W,
+  height = H,
+  background: Image | null = null,
+): void {
+  if (background) {
+    ctx.save();
+    roundRect(ctx, PAD, PAD, width - PAD * 2, height - PAD * 2, 32);
+    ctx.clip();
+    const scale = Math.max((width - PAD * 2) / background.width, (height - PAD * 2) / background.height);
+    const drawW = background.width * scale;
+    const drawH = background.height * scale;
+    ctx.drawImage(background, (width - drawW) / 2, (height - drawH) / 2, drawW, drawH);
+    ctx.restore();
+    return;
+  }
+
   ctx.save();
   ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
   ctx.shadowBlur = 26;
@@ -412,15 +430,19 @@ export interface ProfileCardInput {
 export async function renderProfileCard(
   input: ProfileCardInput,
   theme: CardTheme = DEFAULT_THEME,
+  background: Buffer | null = null,
 ): Promise<Buffer> {
   ensureFonts();
 
   const p = palette(theme.colors);
   const ctx = createCanvas(PROFILE_CARD_SIZE.width, PROFILE_CARD_SIZE.height).getContext('2d');
   ctx.scale(SCALE, SCALE);
-  const avatar = await loadAvatar(input.avatarUrl);
+  const [avatar, bgImage] = await Promise.all([
+    loadAvatar(input.avatarUrl),
+    background ? loadImage(background).catch(() => null) : Promise.resolve(null),
+  ]);
 
-  drawBackground(ctx, p);
+  drawBackground(ctx, p, W, H, bgImage);
   await drawHeader(ctx, p, 'VOICE PROFILE');
 
   // ── ฮีโร่: avatar + ชื่อ + meta + อันดับ ──
@@ -550,14 +572,16 @@ export interface WeeklyCardInput {
 export async function renderWeeklyCard(
   input: WeeklyCardInput,
   theme: CardTheme = DEFAULT_THEME,
+  background: Buffer | null = null,
 ): Promise<Buffer> {
   ensureFonts();
 
   const p = palette(theme.colors);
   const ctx = createCanvas(WEEKLY_CARD_SIZE.width, WEEKLY_CARD_SIZE.height).getContext('2d');
   ctx.scale(SCALE, SCALE);
+  const bgImage = background ? await loadImage(background).catch(() => null) : null;
 
-  drawBackground(ctx, p, WEEKLY_W, WEEKLY_H);
+  drawBackground(ctx, p, WEEKLY_W, WEEKLY_H, bgImage);
   await drawHeader(ctx, p, `${TH_DATE.format(input.from)} – ${TH_DATE.format(input.to)}`);
 
   // ── หัวเรื่อง ──

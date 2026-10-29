@@ -103,3 +103,23 @@ export async function getCardTheme(guildId: string, variant: CardVariant = 'prof
 export function themeToLayout(theme: CardTheme): { themeId: string; colors: CardColors } {
   return { themeId: theme.id, colors: { ...theme.colors } };
 }
+
+/** อ่านพื้นหลังการ์ดที่อัปโหลดไว้ (ไม่มี → null = ใช้ gradient ของธีม) */
+export async function getCardBackground(
+  guildId: string,
+  variant: CardVariant = 'profile',
+): Promise<Buffer | null> {
+  const pool = getPool();
+  if (!pool || !isDbReady()) return null;
+
+  try {
+    const result = await pool.query<{ data: Buffer }>(
+      'SELECT data FROM card_backgrounds WHERE guild_id = $1 AND variant = $2',
+      [guildId, variant],
+    );
+    return result.rows[0]?.data ?? null;
+  } catch (error) {
+    console.error('[cardLayout] อ่านพื้นหลังการ์ดไม่สำเร็จ:', error);
+    return null;
+  }
+}

@@ -13,7 +13,7 @@
 import http from 'http';
 import { isDbConfigured, isDbReady } from './db';
 import { botOwnerCount } from './premium';
-import { resolveTheme } from './cardLayout';
+import { getCardBackground, resolveTheme } from './cardLayout';
 import { renderProfileCard, renderWeeklyCard } from './profileCard';
 
 /** จำกัดการเรียกพรีวิว: 120 ครั้ง/นาที ต่อ IP (ลากปรับการ์ดต่อเนื่องได้) */
@@ -85,10 +85,15 @@ export function startHealthServer(): void {
 
       try {
         const theme = resolveTheme(url.searchParams.get('theme'));
+        const variant = url.pathname === '/preview/profile' ? 'profile' : 'weekly';
+        const guildId = url.searchParams.get('guild');
+        // ?guild=<id> → แสดงพื้นหลังการ์ดที่เซิร์ฟเวอร์นั้นอัปโหลดไว้ด้วย
+        const background = /^\d{17,20}$/.test(guildId ?? '') ? await getCardBackground(guildId as string, variant) : null;
+
         const png =
-          url.pathname === '/preview/profile'
-            ? await renderProfileCard(DEMO_PROFILE, theme)
-            : await renderWeeklyCard(DEMO_WEEKLY, theme);
+          variant === 'profile'
+            ? await renderProfileCard(DEMO_PROFILE, theme, background)
+            : await renderWeeklyCard(DEMO_WEEKLY, theme, background);
 
         res.writeHead(200, {
           'Content-Type': 'image/png',

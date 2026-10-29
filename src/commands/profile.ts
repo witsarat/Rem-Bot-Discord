@@ -17,7 +17,7 @@ import {
 } from 'discord.js';
 import { isDbReady } from '../utils/db';
 import { formatVoiceDuration, getVoiceLeaderboard, getUserVoiceStats } from '../utils/voiceStats';
-import { getCardTheme } from '../utils/cardLayout';
+import { getCardBackground, getCardTheme } from '../utils/cardLayout';
 import { renderProfileCard } from '../utils/profileCard';
 
 export const data = new SlashCommandBuilder()
@@ -72,10 +72,11 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     (await guild.members.fetch(targetUser.id).catch(() => null));
 
   const openNow = openVoiceUsers(guild);
-  const [stats, board, theme] = await Promise.all([
+  const [stats, board, theme, background] = await Promise.all([
     getUserVoiceStats(guild.id, targetUser.id, openNow),
     getVoiceLeaderboard(guild.id, null, openNow),
     getCardTheme(guild.id, 'profile'),
+    getCardBackground(guild.id, 'profile'),
   ]);
 
   if (!stats) {
@@ -103,7 +104,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
         joins: stats.joins,
         topChannel: stats.topChannel?.name ?? null,
       },
-    }, theme);
+    }, theme, background);
 
     await interaction.editReply({
       files: [new AttachmentBuilder(png, { name: 'ruru-profile.png' })],

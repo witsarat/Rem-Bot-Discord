@@ -118,6 +118,21 @@ export async function initDb(): Promise<void> {
       )
     `);
 
+    // ── พื้นหลังการ์ดที่อัปโหลดเอง (เช่น ออกแบบใน Canva) ─────────
+    // 1 แถว = 1 เซิร์ฟเวอร์ + 1 ชนิดการ์ด • เก็บไฟล์ใน DB (BYTEA) ไม่ต้องใช้ storage เพิ่ม
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS card_backgrounds (
+        guild_id TEXT NOT NULL,
+        variant TEXT NOT NULL DEFAULT 'profile',
+        mime TEXT NOT NULL,
+        filename TEXT,
+        bytes INTEGER NOT NULL,
+        data BYTEA NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        PRIMARY KEY (guild_id, variant)
+      )
+    `);
+
     // ── Role rewards (voice-only) ────────────────────────────────
     // guild_reward_config : เปิด/ปิดโมดูล + ห้องประกาศ + โหมดเก็บยศ
     // guild_role_rewards : เกณฑ์ให้ยศอัตโนมัติ (ฟรี 1 เกณฑ์ / Premium ไม่จำกัด)
