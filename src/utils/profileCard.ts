@@ -15,12 +15,23 @@ import { createCanvas, GlobalFonts, loadImage, type Image, type SKRSContext2D } 
 import { formatVoiceDuration } from './voiceStats';
 import { DEFAULT_THEME, type CardColors, type CardTheme } from './cardLayout';
 
+/**
+ * สเกลการ์ด: วาดที่พิกัดดีไซน์ 1000×560 / 1000×620 แล้วย่อทั้งผืนตามค่านี้
+ * 0.8 → การ์ดจริง 800×448 (โปรไฟล์) และ 800×496 (weekly)
+ * อยากเล็กลง/ใหญ่ขึ้น แก้เลขนี้ที่เดียว (0.7 / 0.75 / 0.9) ไม่ต้องแก้พิกัดใด ๆ
+ */
+const SCALE = 0.8;
+
 const PAD = 8;
 const W = 1000;
 const H = 560;
 const WEEKLY_W = 1000;
 const WEEKLY_H = 620;
 const MARGIN = 56;
+
+/** ขนาดไฟล์ PNG จริงที่ส่งออก (ใช้บอกฝั่งเว็บ/ทดสอบ) */
+export const PROFILE_CARD_SIZE = { width: Math.round(W * SCALE), height: Math.round(H * SCALE) };
+export const WEEKLY_CARD_SIZE = { width: Math.round(WEEKLY_W * SCALE), height: Math.round(WEEKLY_H * SCALE) };
 
 const GOLD = '#ffd166';
 const SILVER = '#d8d2cc';
@@ -405,7 +416,8 @@ export async function renderProfileCard(
   ensureFonts();
 
   const p = palette(theme.colors);
-  const ctx = createCanvas(W, H).getContext('2d');
+  const ctx = createCanvas(PROFILE_CARD_SIZE.width, PROFILE_CARD_SIZE.height).getContext('2d');
+  ctx.scale(SCALE, SCALE);
   const avatar = await loadAvatar(input.avatarUrl);
 
   drawBackground(ctx, p);
@@ -541,7 +553,8 @@ export async function renderWeeklyCard(
   ensureFonts();
 
   const p = palette(theme.colors);
-  const ctx = createCanvas(WEEKLY_W, WEEKLY_H).getContext('2d');
+  const ctx = createCanvas(WEEKLY_CARD_SIZE.width, WEEKLY_CARD_SIZE.height).getContext('2d');
+  ctx.scale(SCALE, SCALE);
 
   drawBackground(ctx, p, WEEKLY_W, WEEKLY_H);
   await drawHeader(ctx, p, `${TH_DATE.format(input.from)} – ${TH_DATE.format(input.to)}`);
