@@ -52,6 +52,38 @@ export const DEFAULT_LAYOUT: CardLayout = {
   logo: { enabled: true, x: 936, y: 44, size: 30 },
 };
 
+/** ธีมสำเร็จรูป: เปลี่ยนเฉพาะชุดสี (ตำแหน่ง/ขนาดคงเดิม) */
+export interface CardPreset {
+  id: string;
+  name: string;
+  colors: CardLayout['colors'];
+}
+
+export const CARD_PRESETS: CardPreset[] = [
+  { id: 'ruru', name: 'Ruru Orange', colors: { bgFrom: '#1b1310', bgTo: '#2b1a12', accent: '#ff8c42', accentSoft: '#ffb37a', text: '#fff4ec', muted: '#d0b3a3' } },
+  { id: 'midnight', name: 'Midnight', colors: { bgFrom: '#0b1020', bgTo: '#141c33', accent: '#5b8cff', accentSoft: '#9db8ff', text: '#eef2ff', muted: '#aab6d3' } },
+  { id: 'forest', name: 'Forest', colors: { bgFrom: '#0d1512', bgTo: '#14261f', accent: '#4ade80', accentSoft: '#a7f3c4', text: '#f0fdf4', muted: '#a9c9b8' } },
+  { id: 'sakura', name: 'Sakura', colors: { bgFrom: '#1a1013', bgTo: '#2b1620', accent: '#ff7aa8', accentSoft: '#ffb8ce', text: '#fff1f5', muted: '#d8b6c2' } },
+  { id: 'ocean', name: 'Ocean', colors: { bgFrom: '#08161c', bgTo: '#0f2a34', accent: '#22d3ee', accentSoft: '#8ce8f7', text: '#ecfeff', muted: '#a6cbd3' } },
+  { id: 'sunset', name: 'Sunset', colors: { bgFrom: '#1c1010', bgTo: '#331a17', accent: '#f97316', accentSoft: '#fdba74', text: '#fff7ed', muted: '#d9bcae' } },
+  { id: 'grape', name: 'Grape', colors: { bgFrom: '#150f1f', bgTo: '#241436', accent: '#a78bfa', accentSoft: '#cbb8ff', text: '#f5f3ff', muted: '#c0b3d9' } },
+  { id: 'mono', name: 'Mono', colors: { bgFrom: '#101012', bgTo: '#1c1c20', accent: '#d4d4d8', accentSoft: '#f4f4f5', text: '#fafafa', muted: '#a1a1aa' } },
+  { id: 'gold', name: 'Gold Noir', colors: { bgFrom: '#12100a', bgTo: '#221b0e', accent: '#eab308', accentSoft: '#fde68a', text: '#fefce8', muted: '#cbbb92' } },
+  { id: 'mint', name: 'Mint', colors: { bgFrom: '#0c1412', bgTo: '#12241f', accent: '#2dd4bf', accentSoft: '#99f6e4', text: '#f0fdfa', muted: '#a7ccc5' } },
+  { id: 'crimson', name: 'Crimson', colors: { bgFrom: '#170d0d', bgTo: '#2a1212', accent: '#ef4444', accentSoft: '#fca5a5', text: '#fef2f2', muted: '#d3b0b0' } },
+  { id: 'sand', name: 'Sand', colors: { bgFrom: '#1a1610', bgTo: '#2b2417', accent: '#d6a45c', accentSoft: '#ecd0a1', text: '#fdf8ef', muted: '#cdbfa9' } },
+  { id: 'cyber', name: 'Cyber', colors: { bgFrom: '#0a0a14', bgTo: '#171233', accent: '#22d3ee', accentSoft: '#c084fc', text: '#f5f3ff', muted: '#b3aecf' } },
+  { id: 'coffee', name: 'Coffee', colors: { bgFrom: '#17110d', bgTo: '#271b14', accent: '#c08457', accentSoft: '#e3b992', text: '#fbf3ea', muted: '#cbb5a2' } },
+  { id: 'arctic', name: 'Arctic', colors: { bgFrom: '#f4f7fb', bgTo: '#dfe7f3', accent: '#2563eb', accentSoft: '#60a5fa', text: '#0f172a', muted: '#475569' } },
+  { id: 'blossom', name: 'Blossom', colors: { bgFrom: '#fff6f2', bgTo: '#ffe3d6', accent: '#e2562b', accentSoft: '#f59e6c', text: '#2b1206', muted: '#6b4a3a' } },
+];
+
+/** แปลงธีม → ชุดสี (คืนค่าใหม่ ไม่ผูกกับ object เดิม) */
+export function presetColors(id: string): CardLayout['colors'] | null {
+  const preset = CARD_PRESETS.find((item) => item.id === id);
+  return preset ? { ...preset.colors } : null;
+}
+
 const HEX = /^#[0-9a-fA-F]{6}$/;
 
 function num(value: unknown, fallback: number, min: number, max: number): number {

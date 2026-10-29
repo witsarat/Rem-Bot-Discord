@@ -41,6 +41,17 @@ interface Theme {
   gold: string;
 }
 
+function luminance(hex: string): number {
+  const channel = (value: number) => {
+    const c = value / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  const r = channel(parseInt(hex.slice(1, 3), 16));
+  const g = channel(parseInt(hex.slice(3, 5), 16));
+  const b = channel(parseInt(hex.slice(5, 7), 16));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
 function hexToRgba(hex: string, alpha: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
@@ -50,6 +61,8 @@ function hexToRgba(hex: string, alpha: number): string {
 
 function theme(layout: CardLayout): Theme {
   const c = layout.colors;
+  // ธีมพื้นสว่าง (เช่น Arctic/Blossom) ต้องใช้เลเยอร์ดำจาง ๆ แทนขาว เพื่อให้เห็นการ์ดย่อย
+  const light = luminance(c.bgFrom) > 0.6;
   return {
     bgFrom: c.bgFrom,
     bgTo: c.bgTo,
@@ -57,14 +70,14 @@ function theme(layout: CardLayout): Theme {
     accentSoft: c.accentSoft,
     text: c.text,
     muted: c.muted,
-    card: 'rgba(255, 255, 255, 0.045)',
-    band: 'rgba(255, 255, 255, 0.05)',
-    border: 'rgba(255, 255, 255, 0.10)',
-    line: 'rgba(255, 255, 255, 0.10)',
-    chipBg: hexToRgba(c.accent, 0.14),
+    card: light ? 'rgba(15, 23, 42, 0.05)' : 'rgba(255, 255, 255, 0.045)',
+    band: light ? 'rgba(15, 23, 42, 0.05)' : 'rgba(255, 255, 255, 0.05)',
+    border: light ? 'rgba(15, 23, 42, 0.12)' : 'rgba(255, 255, 255, 0.10)',
+    line: light ? 'rgba(15, 23, 42, 0.12)' : 'rgba(255, 255, 255, 0.10)',
+    chipBg: hexToRgba(c.accent, light ? 0.16 : 0.14),
     chipBorder: hexToRgba(c.accent, 0.42),
-    glowStrong: hexToRgba(c.accent, 0.20),
-    glowSoft: hexToRgba(c.accent, 0.12),
+    glowStrong: hexToRgba(c.accent, light ? 0.13 : 0.20),
+    glowSoft: hexToRgba(c.accent, light ? 0.09 : 0.12),
     gold: GOLD,
   };
 }
